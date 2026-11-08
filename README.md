@@ -41,12 +41,16 @@ is what this tool does, and the only hardware it needs is the gateway and two wi
 
 Version 0.1.0.
 
-- 29 unit tests cover the FCS, the byte stuffing, the test frames and the sequence tracking.
-- Verified 2026-11-08 against HDLCGW on a LOLIN S2 Mini in loopback: 2673 frames at 9600,
-  38400, 307200 and 983000 bit/s, 126 and 1024 bytes each, 0 lost, 0 bad.
-- Measured on that board: 95 percent of the clock rate comes through as payload at 9600 and
-  38400 bit/s; above about 270 kbit/s the USB path between board and PC is the ceiling, not
-  the line.
+- 30 unit tests cover the FCS, the byte stuffing, the test frames and the sequence tracking.
+- Verified 2026-11-08 against HDLCGW on a LOLIN S2 Mini in loopback, two minutes per rate
+  with 1024-byte frames: 9600, 19200, 38400, 115200, 307200 and 983000 bit/s, 9894 frames in
+  all, 0 lost, 0 bad. The board's own counters agreed: 5747 sent, 5747 received, 0 bad since
+  its last reset.
+- Measured on that board: 95 percent of the clock rate comes through as payload up to 38400
+  bit/s; above about 270 kbit/s the USB path between board and PC is the ceiling, not the
+  line.
+- It found two firmware bugs on the way (frames split by idle bytes; a padding byte stuck on
+  the front of frames), both fixed in HDLCGW the same day.
 - Not yet run against RC422Dev (the Pico was not powered when this was written).
 
 ## Prerequisites
