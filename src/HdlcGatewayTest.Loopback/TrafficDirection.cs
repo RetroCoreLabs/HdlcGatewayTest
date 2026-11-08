@@ -19,7 +19,7 @@ public sealed class TrafficDirection
     private readonly byte _address;
     private readonly int _frameLength;
     private readonly int _windowBytes;
-    private readonly long _timeoutTicks;
+    private long _timeoutTicks = Stopwatch.Frequency * 5;
     private readonly ByteFrameDecoder _decoder;
     private readonly PendingFrames _pending;
     private readonly byte[] _frame;
@@ -37,9 +37,8 @@ public sealed class TrafficDirection
     /// <param name="address">Address byte of this direction's frames.</param>
     /// <param name="frameLength">Frame length including FCS.</param>
     /// <param name="windowBytes">Most encoded bytes in flight.</param>
-    /// <param name="timeoutSeconds">Seconds before a missing frame counts as lost.</param>
     public TrafficDirection(string name, GatewayPort source, GatewayPort sink, byte address,
-                            int frameLength, int windowBytes, int timeoutSeconds)
+                            int frameLength, int windowBytes)
     {
         Name = name;
         _source = source;
@@ -47,7 +46,6 @@ public sealed class TrafficDirection
         _address = address;
         _frameLength = frameLength;
         _windowBytes = windowBytes;
-        _timeoutTicks = Stopwatch.Frequency * timeoutSeconds;
         _decoder = new ByteFrameDecoder();
         // Enough slots that the window, not the slot count, is what limits traffic.
         _pending = new PendingFrames(Math.Max(16, (windowBytes / TestFrame.MinLength) + 2));
@@ -63,6 +61,13 @@ public sealed class TrafficDirection
 
     /// <summary>Frames still in flight.</summary>
     public int Pending => _pending.Count;
+
+    /// <summary>Seconds before a missing frame counts as lost. Set per rate by the run.</summary>
+    public int TimeoutSeconds
+    {
+        get => (int)(_timeoutTicks / Stopwatch.Frequency);
+        set => _timeoutTicks = Stopwatch.Frequency * value;
+    }
 
     /// <summary>Start a new run: counters to zero, sequence numbers from 0.</summary>
     public void Reset()
@@ -111,6 +116,66 @@ public sealed class TrafficDirection
         return busy;
     }
 
+    /// <summary>Bad frames shown in detail on stderr before the counter alone has to do.</summary>
+    public static int VerboseFrames { get; set; }
+
+    private int _explained;
+
+    /// <summary>
+    /// Say what is wrong with a bad frame: how long it is against what its header claims, and
+    /// where it first differs from the frame the sequence number should have produced.
+    /// </summary>
+    private void Explain(ReadOnlySpan<byte> frame, uint sequence, byte address, string what)
+    {
+        if (_explained >= VerboseFrames)
+        {
+            return;
+        }
+        _explained++;
+
+        int claimed = frame.Length >= 8 ? (frame[6] << 8) | frame[7] : -1;
+        byte[] expected = new byte[Math.Max(claimed, TestFrame.MinLength)];
+        int firstDiff = -1;
+        int diffs = 0;
+        if (claimed >= TestFrame.MinLength && claimed <= expected.Length)
+        {
+            TestFrame.Build(sequence, claimed, address, expected);
+            int n = Math.Min(claimed, frame.Length);
+            for (int i = 0; i < n; i++)
+            {
+                if (frame[i] != expected[i])
+                {
+                    diffs++;
+                    if (firstDiff < 0)
+                    {
+                        firstDiff = i;
+                    }
+                }
+            }
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        sb.Append(Name).Append(": ").Append(what).Append(", seq ").Append(sequence)
+          .Append(", addr 0x").Append(address.ToString("X2"))
+          .Append(", got ").Append(frame.Length).Append(" bytes, header says ").Append(claimed);
+        if (claimed >= TestFrame.MinLength)
+        {
+            sb.Append(", ").Append(diffs).Append(" byte(s) differ from expected");
+            if (firstDiff >= 0)
+            {
+                sb.Append(", first at offset ").Append(firstDiff)
+                  .Append(" (got 0x").Append(frame[firstDiff].ToString("X2"))
+                  .Append(" want 0x").Append(expected[firstDiff].ToString("X2")).Append(')');
+            }
+        }
+        sb.Append(". First 24 bytes:");
+        for (int i = 0; i < Math.Min(24, frame.Length); i++)
+        {
+            sb.Append(' ').Append(frame[i].ToString("X2"));
+        }
+        Console.Error.WriteLine(sb.ToString());
+    }
+
     private bool Receive(long nowTicks)
     {
         bool any = false;
@@ -143,11 +208,13 @@ public sealed class TrafficDirection
         if (verdict == TestFrameVerdict.BadFcs)
         {
             Statistics.FramesBadFcs++;
+            Explain(frame, sequence, address, "bad FCS");
             return;
         }
         if (verdict != TestFrameVerdict.Ok || address != _address)
         {
             Statistics.FramesCorrupt++;
+            Explain(frame, sequence, address, verdict.ToString());
             return;
         }
 

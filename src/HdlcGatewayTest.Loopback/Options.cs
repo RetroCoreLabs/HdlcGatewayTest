@@ -41,6 +41,9 @@ public sealed class Options
     /// <summary>Skip the console step that sets BAUD; use whatever clock the gateways have.</summary>
     public bool NoBaud;
 
+    /// <summary>How many bad frames per direction to describe on stderr.</summary>
+    public int Verbose;
+
     /// <summary>Print the serial ports on this machine and exit.</summary>
     public bool ListPorts;
 
@@ -73,6 +76,12 @@ public sealed class Options
                 break;
             case "--no-baud":
                 o.NoBaud = true;
+                break;
+            case "--verbose":
+                if (!TakeInt(args, ref i, 0, 100000, out o.Verbose, out error))
+                {
+                    return null;
+                }
                 break;
             case "--port":
                 if (!TakeValue(args, ref i, out o.PortA, out error))
@@ -149,6 +158,7 @@ public sealed class Options
         "  --window N               encoded bytes in flight per direction (default 3000)\r\n" +
         "  --timeout N              seconds before an unseen frame counts as lost (default 5)\r\n" +
         "  --no-baud                do not set BAUD through the console; keep the gateways' clocks\r\n" +
+        "  --verbose N              describe the first N bad frames per direction on stderr\r\n" +
         "\r\n" +
         "Exit code 0 when every rate passed: every frame sent came back in order with a good FCS\r\n" +
         "and the exact payload, nothing lost, nothing extra. Otherwise 1.\r\n";

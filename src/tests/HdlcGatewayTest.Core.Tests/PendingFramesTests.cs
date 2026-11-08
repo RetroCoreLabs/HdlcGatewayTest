@@ -54,13 +54,25 @@ public sealed class PendingFramesTests
     }
 
     [Test]
-    public void Unknown_WhenNewerThanAnythingSent_OrNothingPending()
+    public void Unknown_WhenNewerThanAnythingSent_OrNothingEverSent()
     {
         PendingFrames p = new PendingFrames(8);
         Assert.That(p.Acknowledge(0, 10, out _, out _), Is.EqualTo(AcknowledgeResult.Unknown));
         p.Add(0, 1, 10);
         Assert.That(p.Acknowledge(1, 10, out _, out _), Is.EqualTo(AcknowledgeResult.Unknown));
         Assert.That(p.Count, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void Late_WhenEverythingPendingWasAlreadyExpired()
+    {
+        // A frame that timed out and then arrives is late, also when it was the only one in
+        // flight. It must not be counted as corrupt.
+        PendingFrames p = new PendingFrames(8);
+        p.Add(0, 100, 10);
+        Assert.That(p.ExpireSentBefore(100), Is.EqualTo(1));
+        Assert.That(p.Count, Is.EqualTo(0));
+        Assert.That(p.Acknowledge(0, 500, out _, out _), Is.EqualTo(AcknowledgeResult.Late));
     }
 
     [Test]

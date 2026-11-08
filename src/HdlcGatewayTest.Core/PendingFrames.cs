@@ -105,16 +105,15 @@ public sealed class PendingFrames
     {
         lost = 0;
         roundTripTicks = 0;
-        if (_count == 0)
+        if (!_anyAdded || sequence > _lastAdded)
         {
-            return AcknowledgeResult.Unknown;
+            return AcknowledgeResult.Unknown;   // never sent such a number
         }
-        if (sequence > _lastAdded)
+        if (_count == 0 || sequence < _sequence[_head])
         {
-            return AcknowledgeResult.Unknown;
-        }
-        if (sequence < _sequence[_head])
-        {
+            // Sent, but no longer waited for: written off by a timeout or skipped by a
+            // later frame. With nothing pending at all this is the same case, not an
+            // unknown frame (seen on the bench when a 5 s timeout met a 10 s line delay).
             return AcknowledgeResult.Late;
         }
 

@@ -38,6 +38,7 @@ public sealed class TestRun
     /// <returns>True when every rate passed.</returns>
     public bool Run(CancellationToken cancel)
     {
+        TrafficDirection.VerboseFrames = _options.Verbose;
         using GatewayPort a = new GatewayPort(_options.PortA!);
         GatewayPort? b = _options.PortB == null ? null : new GatewayPort(_options.PortB);
         try
@@ -49,18 +50,18 @@ public sealed class TestRun
                 : "Two gateways: " + a.Name + " -> " + b.Name + " and " + b.Name + " -> " + a.Name + ".");
             _out.WriteLine("Frame " + _options.FrameLength + " bytes with FCS, window "
                            + _options.WindowBytes + " bytes, " + _options.SecondsPerRate
-                           + " s per rate, timeout " + _options.TimeoutSeconds + " s.");
+                           + " s per rate, timeout " + _options.TimeoutSeconds + " s or more.");
             _out.WriteLine();
 
             TrafficDirection[] directions = b == null
                 ? new[] { new TrafficDirection("A->A", a, a, 0xA1, _options.FrameLength,
-                                               _options.WindowBytes, _options.TimeoutSeconds) }
+                                               _options.WindowBytes) }
                 : new[]
                 {
                     new TrafficDirection("A->B", a, b, 0xA1, _options.FrameLength,
-                                         _options.WindowBytes, _options.TimeoutSeconds),
+                                         _options.WindowBytes),
                     new TrafficDirection("B->A", b, a, 0xB2, _options.FrameLength,
-                                         _options.WindowBytes, _options.TimeoutSeconds),
+                                         _options.WindowBytes),
                 };
 
             for (int r = 0; r < _options.Rates.Length && !cancel.IsCancellationRequested; r++)
@@ -74,7 +75,12 @@ public sealed class TestRun
                         break;
                     }
                 }
-                RunRate(rate, directions, cancel);
+                int timeout = TimeoutFor(rate);
+                for (int d = 0; d < directions.Length; d++)
+                {
+                    directions[d].TimeoutSeconds = timeout;
+                }
+                RunRate(rate, directions, timeout, cancel);
             }
         }
         finally
@@ -111,11 +117,32 @@ public sealed class TestRun
         return ok;
     }
 
-    private void RunRate(uint rate, TrafficDirection[] directions, CancellationToken cancel)
+    /// <summary>
+    /// Seconds before a frame counts as lost, for this rate: the user's --timeout, or longer
+    /// when the window itself takes longer than that to cross the line. With 12000 bytes in
+    /// flight at 9600 bit/s a frame needs 10 s just to get its turn; a 5 s timeout then wrote
+    /// off every frame as lost and the test failed a gateway that had done nothing wrong
+    /// (bench, 2026-11-08). Three window times plus two seconds leaves room for the USB path.
+    /// </summary>
+    private int TimeoutFor(uint rate)
+    {
+        double windowSeconds = _options.WindowBytes * 8.0 / rate;
+        int needed = (int)Math.Ceiling((3.0 * windowSeconds) + 2.0);
+        return Math.Max(_options.TimeoutSeconds, needed);
+    }
+
+    private void RunRate(uint rate, TrafficDirection[] directions, int timeoutSeconds, CancellationToken cancel)
     {
         for (int d = 0; d < directions.Length; d++)
         {
             directions[d].Reset();
+        }
+        if (timeoutSeconds != _options.TimeoutSeconds)
+        {
+            _out.WriteLine(rate.ToString(CultureInfo.InvariantCulture) + " bit/s: timeout raised to "
+                           + timeoutSeconds + " s, the window takes "
+                           + (_options.WindowBytes * 8.0 / rate).ToString("F1", CultureInfo.InvariantCulture)
+                           + " s to cross the line.");
         }
 
         long start = Stopwatch.GetTimestamp();
@@ -147,7 +174,7 @@ public sealed class TestRun
         long sendingTicks = now - start;
 
         // Drain: let what is in flight come home, up to the timeout.
-        long drainEnd = now + Stopwatch.Frequency * _options.TimeoutSeconds;
+        long drainEnd = now + Stopwatch.Frequency * timeoutSeconds;
         bool pending = true;
         while (pending && now < drainEnd)
         {
@@ -162,7 +189,7 @@ public sealed class TestRun
         }
         for (int d = 0; d < directions.Length; d++)
         {
-            _ = directions[d].Pump(now + Stopwatch.Frequency * _options.TimeoutSeconds, false);
+            _ = directions[d].Pump(now + Stopwatch.Frequency * timeoutSeconds, false);
             // Throughput is measured over sending plus drain: frames that arrive during the
             // drain were on the line during it, so counting them against the sending time
             // alone would overstate the rate (11.6 kbit/s on a 9600 bit/s line, seen once).
