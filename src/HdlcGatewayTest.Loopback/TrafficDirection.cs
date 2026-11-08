@@ -116,8 +116,11 @@ public sealed class TrafficDirection
         return busy;
     }
 
-    /// <summary>Bad frames shown in detail on stderr before the counter alone has to do.</summary>
+    /// <summary>Bad frames shown in detail before the counter alone has to do.</summary>
     public static int VerboseFrames { get; set; }
+
+    /// <summary>Where the bad-frame descriptions go; the run's output writer.</summary>
+    public static TextWriter VerboseWriter { get; set; } = Console.Error;
 
     private int _explained;
 
@@ -173,7 +176,7 @@ public sealed class TrafficDirection
         {
             sb.Append(' ').Append(frame[i].ToString("X2"));
         }
-        Console.Error.WriteLine(sb.ToString());
+        VerboseWriter.WriteLine(sb.ToString());
     }
 
     private bool Receive(long nowTicks)

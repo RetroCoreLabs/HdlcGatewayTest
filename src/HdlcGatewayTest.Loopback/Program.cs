@@ -47,20 +47,37 @@ public static class Program
             cts.Cancel();
         };
 
+        TextWriter output = Console.Out;
+        StreamWriter? log = null;
+        if (options.LogFile != null)
+        {
+            log = new StreamWriter(options.LogFile, true);
+            log.WriteLine();
+            log.WriteLine("==== hdlc-loopback " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  "
+                          + string.Join(' ', args));
+            output = new TeeWriter(Console.Out, log);
+        }
+        TrafficDirection.VerboseWriter = output;
+
         try
         {
-            TestRun run = new TestRun(options, Console.Out);
+            TestRun run = new TestRun(options, output);
             return run.Run(cts.Token) ? 0 : 1;
         }
         catch (UnauthorizedAccessException ex)
         {
-            Console.Error.WriteLine("Port busy or not permitted: " + ex.Message);
+            output.WriteLine("Port busy or not permitted: " + ex.Message);
             return 1;
         }
         catch (IOException ex)
         {
-            Console.Error.WriteLine("Port error: " + ex.Message);
+            output.WriteLine("Port error: " + ex.Message);
             return 1;
+        }
+        finally
+        {
+            output.Flush();
+            log?.Dispose();
         }
     }
 }

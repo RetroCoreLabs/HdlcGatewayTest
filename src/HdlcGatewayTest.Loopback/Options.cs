@@ -44,6 +44,9 @@ public sealed class Options
     /// <summary>How many bad frames per direction to describe on stderr.</summary>
     public int Verbose;
 
+    /// <summary>File that gets a copy of everything printed, or null.</summary>
+    public string? LogFile;
+
     /// <summary>Print the serial ports on this machine and exit.</summary>
     public bool ListPorts;
 
@@ -79,6 +82,12 @@ public sealed class Options
                 break;
             case "--verbose":
                 if (!TakeInt(args, ref i, 0, 100000, out o.Verbose, out error))
+                {
+                    return null;
+                }
+                break;
+            case "--log":
+                if (!TakeValue(args, ref i, out o.LogFile, out error))
                 {
                     return null;
                 }
@@ -159,6 +168,7 @@ public sealed class Options
         "  --timeout N              seconds before an unseen frame counts as lost (default 5)\r\n" +
         "  --no-baud                do not set BAUD through the console; keep the gateways' clocks\r\n" +
         "  --verbose N              describe the first N bad frames per direction on stderr\r\n" +
+        "  --log FILE               also write everything printed to FILE (appended)\r\n" +
         "\r\n" +
         "Exit code 0 when every rate passed: every frame sent came back in order with a good FCS\r\n" +
         "and the exact payload, nothing lost, nothing extra. Otherwise 1.\r\n";
