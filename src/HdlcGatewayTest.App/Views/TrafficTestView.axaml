@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HdlcGatewayTest.App.ViewModels"
+             x:Class="HdlcGatewayTest.App.Views.TrafficTestView"
+             x:DataType="vm:TrafficTestViewModel">
+    <Expander Header="Traffic test" IsExpanded="True" Margin="6,0">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+            <WrapPanel Grid.Row="0" Margin="0,4">
+                <RadioButton Content="Loopback on A" IsChecked="{Binding !TwoGateways}" Margin="0,0,12,0" />
+                <RadioButton Content="A -&gt; B and B -&gt; A" IsChecked="{Binding TwoGateways}" Margin="0,0,16,0" />
+                <TextBlock Text="Rates" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBox Width="260" Text="{Binding Rates}" Margin="0,0,12,0" />
+                <TextBlock Text="Size" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <NumericUpDown Value="{Binding Size}" Minimum="10" Maximum="1024" Increment="1" FormatString="0" Width="90" ShowButtonSpinner="False" Margin="0,0,12,0" />
+                <TextBlock Text="Window" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <NumericUpDown Value="{Binding Window}" Minimum="10" Maximum="1000000" Increment="100" FormatString="0" Width="100" ShowButtonSpinner="False" Margin="0,0,12,0" />
+                <TextBlock Text="Seconds/rate" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <NumericUpDown Value="{Binding Seconds}" Minimum="1" Maximum="86400" Increment="10" FormatString="0" Width="90" ShowButtonSpinner="False" Margin="0,0,12,0" />
+                <TextBlock Text="Timeout s" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <NumericUpDown Value="{Binding Timeout}" Minimum="1" Maximum="3600" Increment="1" FormatString="0" Width="80" ShowButtonSpinner="False" Margin="0,0,12,0" />
+                <CheckBox Content="no BAUD" IsChecked="{Binding NoBaud}" Margin="0,0,12,0" ToolTip.Tip="Keep the gateways' clocks as they are" />
+                <Button Content="Start" Command="{Binding StartCommand}" Margin="0,0,4,0" />
+                <Button Content="Stop" Command="{Binding StopCommand}" Margin="0,0,12,0" />
+                <TextBlock Text="{Binding Verdict}" FontWeight="Bold" VerticalAlignment="Center" />
+            </WrapPanel>
+            <TextBlock Grid.Row="1" Classes="mono" FontSize="12" Text="{Binding StatusLine}" Margin="0,2" />
+            <ItemsControl Grid.Row="2" ItemsSource="{Binding Messages}" MaxHeight="90">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <TextBlock Classes="mono" FontSize="11" Text="{Binding}" Foreground="Chocolate" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBox Grid.Row="3" Classes="mono" FontSize="12" Text="{Binding Report}" IsReadOnly="True"
+                     AcceptsReturn="True" BorderThickness="0" IsVisible="{Binding Report, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </Grid>
+    </Expander>
+</UserControl>

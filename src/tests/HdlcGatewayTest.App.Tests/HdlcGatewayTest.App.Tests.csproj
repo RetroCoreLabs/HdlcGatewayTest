@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>HdlcGatewayTest.App.Tests</AssemblyName>
+    <RootNamespace>HdlcGatewayTest.App.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- View-model tests only: Avalonia.Headless.NUnit has no 12.x release in reach (the cache
+         holds 11.3.x), so the window itself is checked on the bench, not here. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="NUnit.Analyzers" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\HdlcGatewayTest.Core.Tests\FakeTransport.cs" Link="Fakes\FakeTransport.cs" />
+    <Compile Include="..\HdlcGatewayTest.Core.Tests\FakeGateway.cs" Link="Fakes\FakeGateway.cs" />
+    <Compile Include="..\HdlcGatewayTest.Mcp.Tests\HdlcToolProviderTests.cs" Link="Fakes\FakeTransportFactory.cs"
+             Condition="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\HdlcGatewayTest.Core\HdlcGatewayTest.Core.csproj" />
+    <ProjectReference Include="..\..\HdlcGatewayTest.Gateway\HdlcGatewayTest.Gateway.csproj" />
+    <ProjectReference Include="..\..\HdlcGatewayTest.App\HdlcGatewayTest.App.csproj" />
+  </ItemGroup>
+
+</Project>

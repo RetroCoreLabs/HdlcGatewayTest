@@ -15,7 +15,9 @@ jobs:
         working-directory: src
       - run: dotnet build -c Release --no-restore -warnaserror -nodeReuse:false
         working-directory: src
-      # The unit tests cover the pure code (FCS, byte stuffing, test frames, bookkeeping).
-      # Anything that needs a gateway on a serial port is not a unit test and is not here.
+      # The unit tests cover the pure code (FCS, byte stuffing, control frames, the traffic
+      # engine and the session layer against a fake gateway, the MCP tools over a real local
+      # server, the pane view models). Anything that needs a gateway on a serial port is not a
+      # unit test and is not here.
       - run: dotnet test -c Release --no-build -nodeReuse:false
         working-directory: src

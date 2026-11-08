@@ -1,43 +1,43 @@
-// TRAFFIC DIRECTION - frames out of one port, checked as they come in on another (or the same).
+// TRAFFIC DIRECTION - frames out of one gateway, checked as they come in on another (or the same).
 // SPDX-License-Identifier: MIT
 // Copyright (c) 1985-2026 Ronny Hansen
 
 using System.Diagnostics;
-using HdlcGatewayTest.Core;
+using System.Text;
 
-namespace HdlcGatewayTest.Loopback;
+namespace HdlcGatewayTest.Core;
 
 /// <summary>
-/// One direction of traffic. Keeps the window full on the sending side, decodes everything
-/// the receiving side delivers, and matches frames by sequence number. In loopback the two
-/// ports are the same object; in a two-gateway test they are A and B.
+/// One direction of traffic. Keeps the window full on the sending side, takes the frames the
+/// receiving link's channel delivers, and matches them by sequence number. In loopback the
+/// two links are the same object; in a two-gateway test they are A and B. The direction
+/// attaches itself to the sink channel's data-frame and bad-frame handlers, so control frames
+/// (log lines, replies) on the same port still reach the link's console while traffic runs.
 /// </summary>
 public sealed class TrafficDirection
 {
-    private readonly GatewayPort _source;
-    private readonly GatewayPort _sink;
+    private readonly GatewayLink _source;
+    private readonly GatewayLink _sink;
     private readonly byte _address;
     private readonly int _frameLength;
     private readonly int _windowBytes;
     private long _timeoutTicks = Stopwatch.Frequency * 5;
-    private readonly ByteFrameDecoder _decoder;
     private readonly PendingFrames _pending;
     private readonly byte[] _frame;
-    private readonly byte[] _encoded;
-    private readonly byte[] _rx = new byte[8192];
     private uint _nextSequence;
-    private long _lastDecoderDropped;
+    private int _lastDecoderDropped;
+    private int _explained;
 
     /// <summary>
-    /// Set up a direction.
+    /// Set up a direction and attach it to the sink's channel.
     /// </summary>
     /// <param name="name">Shown in the status line, for example "A->B".</param>
-    /// <param name="source">Port the frames are written to.</param>
-    /// <param name="sink">Port the frames are expected back on.</param>
+    /// <param name="source">Link the frames are written to.</param>
+    /// <param name="sink">Link the frames are expected back on.</param>
     /// <param name="address">Address byte of this direction's frames.</param>
     /// <param name="frameLength">Frame length including FCS.</param>
     /// <param name="windowBytes">Most encoded bytes in flight.</param>
-    public TrafficDirection(string name, GatewayPort source, GatewayPort sink, byte address,
+    public TrafficDirection(string name, GatewayLink source, GatewayLink sink, byte address,
                             int frameLength, int windowBytes)
     {
         Name = name;
@@ -46,11 +46,11 @@ public sealed class TrafficDirection
         _address = address;
         _frameLength = frameLength;
         _windowBytes = windowBytes;
-        _decoder = new ByteFrameDecoder();
         // Enough slots that the window, not the slot count, is what limits traffic.
         _pending = new PendingFrames(Math.Max(16, (windowBytes / TestFrame.MinLength) + 2));
         _frame = new byte[frameLength];
-        _encoded = new byte[ByteFrame.MaxEncodedLength(frameLength)];
+        _sink.Channel.DataFrameReceived = OnDataFrame;
+        _sink.Channel.BadFrameReceived = OnBadFrame;
     }
 
     /// <summary>Label for reports.</summary>
@@ -69,43 +69,56 @@ public sealed class TrafficDirection
         set => _timeoutTicks = Stopwatch.Frequency * value;
     }
 
+    /// <summary>How many bad frames to describe through <see cref="Explainer"/> before the counter alone has to do.</summary>
+    public int VerboseFrames { get; set; }
+
+    /// <summary>Where bad-frame descriptions go; null for none.</summary>
+    public Action<string>? Explainer { get; set; }
+
     /// <summary>Start a new run: counters to zero, sequence numbers from 0.</summary>
     public void Reset()
     {
         Statistics.Clear();
         _pending.Clear();
-        _decoder.Reset();
         _nextSequence = 0;
-        _lastDecoderDropped = _decoder.DroppedFrames;
+        _explained = 0;
+        _lastDecoderDropped = _sink.Channel.DroppedFrames;
     }
 
     /// <summary>
-    /// One step: take in what arrived, write off what timed out, and top up the window.
+    /// One step: write off what timed out and top up the window. Receiving happens when the
+    /// sink link is pumped (<see cref="GatewayLink.Pump"/>), which the engine does first.
     /// </summary>
     /// <param name="nowTicks">Current Stopwatch timestamp.</param>
     /// <param name="sending">False during the drain phase, when nothing new goes out.</param>
-    /// <returns>True when something was received or sent; false when there was nothing to do.</returns>
+    /// <returns>True when something was sent.</returns>
     public bool Pump(long nowTicks, bool sending)
     {
-        bool busy = Receive(nowTicks);
+        int dropped = _sink.Channel.DroppedFrames;
+        if (dropped != _lastDecoderDropped)
+        {
+            Statistics.DecoderDropped += dropped - _lastDecoderDropped;
+            _lastDecoderDropped = dropped;
+        }
 
         int expired = _pending.ExpireSentBefore(nowTicks - _timeoutTicks);
         Statistics.FramesLost += expired;
 
         if (!sending)
         {
-            return busy;
+            return false;
         }
 
+        bool busy = false;
         while (!_pending.IsFull)
         {
             Span<byte> frame = TestFrame.Build(_nextSequence, _frameLength, _address, _frame);
-            int encodedLength = ByteFrame.Encode(frame, _encoded);
+            int encodedLength = EncodedLength(frame);
             if (_pending.BytesInFlight + encodedLength > _windowBytes && _pending.Count > 0)
             {
                 break;
             }
-            _source.Write(new ReadOnlySpan<byte>(_encoded, 0, encodedLength));
+            _source.Channel.Send(frame);
             _pending.Add(_nextSequence, Stopwatch.GetTimestamp(), encodedLength);
             Statistics.FramesSent++;
             Statistics.BytesSent += frame.Length;
@@ -116,13 +129,68 @@ public sealed class TrafficDirection
         return busy;
     }
 
-    /// <summary>Bad frames shown in detail before the counter alone has to do.</summary>
-    public static int VerboseFrames { get; set; }
+    /// <summary>Bytes the frame takes on the wire: flags plus escapes.</summary>
+    private static int EncodedLength(ReadOnlySpan<byte> frame)
+    {
+        int n = 2;
+        for (int i = 0; i < frame.Length; i++)
+        {
+            byte b = frame[i];
+            n += (b == ByteFrame.Flag || b == ByteFrame.Escape || b < 0x20) ? 2 : 1;
+        }
+        return n;
+    }
 
-    /// <summary>Where the bad-frame descriptions go; the run's output writer.</summary>
-    public static TextWriter VerboseWriter { get; set; } = Console.Error;
+    private void OnBadFrame(ReadOnlySpan<byte> frame)
+    {
+        Statistics.FramesReceived++;
+        Statistics.FramesBadFcs++;
+        TestFrame.Verify(frame, out uint sequence, out byte address);
+        Explain(frame, sequence, address, "bad FCS");
+    }
 
-    private int _explained;
+    private void OnDataFrame(ReadOnlySpan<byte> frame)
+    {
+        long nowTicks = Stopwatch.GetTimestamp();
+        Statistics.FramesReceived++;
+        TestFrameVerdict verdict = TestFrame.Verify(frame, out uint sequence, out byte address);
+
+        if (verdict == TestFrameVerdict.BadFcs)
+        {
+            Statistics.FramesBadFcs++;
+            Explain(frame, sequence, address, "bad FCS");
+            return;
+        }
+        if (verdict != TestFrameVerdict.Ok || address != _address)
+        {
+            Statistics.FramesCorrupt++;
+            Explain(frame, sequence, address, verdict.ToString());
+            return;
+        }
+
+        AcknowledgeResult ack = _pending.Acknowledge(sequence, nowTicks, out int lost, out long rtt);
+        switch (ack)
+        {
+            case AcknowledgeResult.InOrder:
+            case AcknowledgeResult.SkippedOlder:
+                Statistics.FramesLost += lost;
+                Statistics.FramesOk++;
+                Statistics.BytesOk += frame.Length;
+                Statistics.RoundTripTicksTotal += rtt;
+                if (rtt > Statistics.RoundTripTicksMax)
+                {
+                    Statistics.RoundTripTicksMax = rtt;
+                }
+                break;
+            case AcknowledgeResult.Late:
+                Statistics.FramesLate++;
+                break;
+            case AcknowledgeResult.Unknown:
+            default:
+                Statistics.FramesCorrupt++;
+                break;
+        }
+    }
 
     /// <summary>
     /// Say what is wrong with a bad frame: how long it is against what its header claims, and
@@ -130,7 +198,7 @@ public sealed class TrafficDirection
     /// </summary>
     private void Explain(ReadOnlySpan<byte> frame, uint sequence, byte address, string what)
     {
-        if (_explained >= VerboseFrames)
+        if (Explainer == null || _explained >= VerboseFrames)
         {
             return;
         }
@@ -157,7 +225,7 @@ public sealed class TrafficDirection
             }
         }
 
-        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        StringBuilder sb = new StringBuilder();
         sb.Append(Name).Append(": ").Append(what).Append(", seq ").Append(sequence)
           .Append(", addr 0x").Append(address.ToString("X2"))
           .Append(", got ").Append(frame.Length).Append(" bytes, header says ").Append(claimed);
@@ -176,72 +244,6 @@ public sealed class TrafficDirection
         {
             sb.Append(' ').Append(frame[i].ToString("X2"));
         }
-        VerboseWriter.WriteLine(sb.ToString());
-    }
-
-    private bool Receive(long nowTicks)
-    {
-        bool any = false;
-        int n;
-        while ((n = _sink.Read(_rx)) > 0)
-        {
-            any = true;
-            for (int i = 0; i < n; i++)
-            {
-                if (_decoder.Feed(_rx[i]))
-                {
-                    Classify(_decoder.Frame, nowTicks);
-                }
-            }
-        }
-        long dropped = _decoder.DroppedFrames;
-        if (dropped != _lastDecoderDropped)
-        {
-            Statistics.DecoderDropped += dropped - _lastDecoderDropped;
-            _lastDecoderDropped = dropped;
-        }
-        return any;
-    }
-
-    private void Classify(ReadOnlySpan<byte> frame, long nowTicks)
-    {
-        Statistics.FramesReceived++;
-        TestFrameVerdict verdict = TestFrame.Verify(frame, out uint sequence, out byte address);
-
-        if (verdict == TestFrameVerdict.BadFcs)
-        {
-            Statistics.FramesBadFcs++;
-            Explain(frame, sequence, address, "bad FCS");
-            return;
-        }
-        if (verdict != TestFrameVerdict.Ok || address != _address)
-        {
-            Statistics.FramesCorrupt++;
-            Explain(frame, sequence, address, verdict.ToString());
-            return;
-        }
-
-        AcknowledgeResult ack = _pending.Acknowledge(sequence, nowTicks, out int lost, out long rtt);
-        switch (ack)
-        {
-        case AcknowledgeResult.InOrder:
-        case AcknowledgeResult.SkippedOlder:
-            Statistics.FramesLost += lost;
-            Statistics.FramesOk++;
-            Statistics.BytesOk += frame.Length;
-            Statistics.RoundTripTicksTotal += rtt;
-            if (rtt > Statistics.RoundTripTicksMax)
-            {
-                Statistics.RoundTripTicksMax = rtt;
-            }
-            break;
-        case AcknowledgeResult.Late:
-            Statistics.FramesLate++;
-            break;
-        case AcknowledgeResult.Unknown:
-        default:
-            Statistics.FramesCorrupt++;
-            break;
-        }
+        Explainer(sb.ToString());
     }
 }

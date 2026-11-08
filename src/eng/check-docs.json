@@ -34,15 +34,5 @@
   "app_folders": [
     "src"
   ],
-  "waivers": [
-    {
-      "files": [
-        "README.md"
-      ],
-      "checks": [
-        "APPS-TABLE"
-      ],
-      "reason": "One application only (hdlc-loopback), so the README is variant B of README-TEMPLATE.md: the whole file is about that one program and a one-row table pointing at a second README would say nothing the first does not."
-    }
-  ]
+  "waivers": []
 }

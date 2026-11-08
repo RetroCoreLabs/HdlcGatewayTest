@@ -4,6 +4,19 @@
     <!-- Serial port access on .NET Core / .NET 5+; not part of the shared framework. -->
     <PackageVersion Include="System.IO.Ports" Version="10.0.14" />
 
+    <!-- Official MCP C# SDK, same version RetroTerm uses (verified in its cache 2026-11-08).
+         AspNetCore gives the streamable-HTTP server on Kestrel; the core package is what a
+         test client needs. -->
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+
+    <!-- The GUI. Same Avalonia line as RetroTerm so one machine keeps one copy. -->
+    <PackageVersion Include="Avalonia" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.3" />
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.95.1" />
+
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageVersion Include="NUnit" Version="4.0.1" />
     <PackageVersion Include="NUnit.Analyzers" Version="4.0.1" />

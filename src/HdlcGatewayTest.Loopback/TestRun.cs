@@ -1,4 +1,4 @@
-// TEST RUN - one rate after the other, each for a fixed time, with a report at the end.
+// TEST RUN - the console face of the traffic test: status lines while it runs, a table at the end.
 // SPDX-License-Identifier: MIT
 // Copyright (c) 1985-2026 Ronny Hansen
 
@@ -6,19 +6,21 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using HdlcGatewayTest.Core;
+using HdlcGatewayTest.Serial;
 
 namespace HdlcGatewayTest.Loopback;
 
 /// <summary>
-/// Drives the whole test: for every rate, set the transmit clock on each gateway through its
-/// console, run traffic for the given time, drain, and keep the counters for the final table.
+/// Opens the ports, probes each gateway, runs the shared <see cref="TrafficTest"/> engine and
+/// prints what it reports in the exact shape hdlc-loopback always printed: a one-line status
+/// per second that overwrites itself on a terminal, and the PASS/FAIL table at the end.
 /// </summary>
-public sealed class TestRun
+public sealed class TestRun : ITrafficTestObserver
 {
     private readonly Options _options;
     private readonly TextWriter _out;
-    private readonly List<RateResult> _results = new List<RateResult>();
     private readonly int _statusWidth = StatusWidth();
+    private readonly List<RateResult> _results = new List<RateResult>();
 
     /// <summary>
     /// Create a run.
@@ -38,9 +40,20 @@ public sealed class TestRun
     /// <returns>True when every rate passed.</returns>
     public bool Run(CancellationToken cancel)
     {
-        TrafficDirection.VerboseFrames = _options.Verbose;
-        using GatewayPort a = new GatewayPort(_options.PortA!);
-        GatewayPort? b = _options.PortB == null ? null : new GatewayPort(_options.PortB);
+        TrafficTestSettings settings = new TrafficTestSettings
+        {
+            Rates = _options.Rates,
+            SecondsPerRate = _options.SecondsPerRate,
+            FrameLength = _options.FrameLength,
+            WindowBytes = _options.WindowBytes,
+            TimeoutSeconds = _options.TimeoutSeconds,
+            NoBaud = _options.NoBaud,
+            VerboseFrames = _options.Verbose,
+        };
+
+        using GatewayLink a = new GatewayLink(new SerialTransport(_options.PortA!));
+        GatewayLink? b = _options.PortB == null ? null : new GatewayLink(new SerialTransport(_options.PortB));
+        bool passed;
         try
         {
             a.Open();
@@ -51,37 +64,18 @@ public sealed class TestRun
             _out.WriteLine("Frame " + _options.FrameLength + " bytes with FCS, window "
                            + _options.WindowBytes + " bytes, " + _options.SecondsPerRate
                            + " s per rate, timeout " + _options.TimeoutSeconds + " s or more.");
+            if (!_options.NoBaud)
+            {
+                Probe(a);
+                if (b != null)
+                {
+                    Probe(b);
+                }
+            }
             _out.WriteLine();
 
-            TrafficDirection[] directions = b == null
-                ? new[] { new TrafficDirection("A->A", a, a, 0xA1, _options.FrameLength,
-                                               _options.WindowBytes) }
-                : new[]
-                {
-                    new TrafficDirection("A->B", a, b, 0xA1, _options.FrameLength,
-                                         _options.WindowBytes),
-                    new TrafficDirection("B->A", b, a, 0xB2, _options.FrameLength,
-                                         _options.WindowBytes),
-                };
-
-            for (int r = 0; r < _options.Rates.Length && !cancel.IsCancellationRequested; r++)
-            {
-                uint rate = _options.Rates[r];
-                if (!_options.NoBaud)
-                {
-                    if (!SetBaud(a, rate) || (b != null && !SetBaud(b, rate)))
-                    {
-                        _results.Add(new RateResult(rate, directions, "could not set BAUD"));
-                        break;
-                    }
-                }
-                int timeout = TimeoutFor(rate);
-                for (int d = 0; d < directions.Length; d++)
-                {
-                    directions[d].TimeoutSeconds = timeout;
-                }
-                RunRate(rate, directions, timeout, cancel);
-            }
+            TrafficTest test = new TrafficTest(settings, this);
+            passed = test.Run(a, b, cancel);
         }
         finally
         {
@@ -89,119 +83,41 @@ public sealed class TestRun
         }
 
         PrintReport();
-        bool passed = _results.Count > 0;
-        for (int i = 0; i < _results.Count; i++)
-        {
-            passed &= _results[i].Passed;
-        }
         return passed;
     }
 
-    private bool SetBaud(GatewayPort port, uint rate)
-    {
-        if (!port.EnterConsole(out string transcript))
-        {
-            _out.WriteLine(port.Name + ": no console prompt after ESC ESC ESC. Is a gateway on this port?");
-            _out.WriteLine("RC422Dev only opens its console before the first forwarded frame; reset it");
-            _out.WriteLine("between rates, or run one rate at a time with --no-baud after setting BAUD");
-            _out.WriteLine("by hand. Got: " + Printable(transcript));
-            return false;
-        }
-        string cmd = "BAUD " + rate.ToString(CultureInfo.InvariantCulture);
-        bool ok = port.Command(cmd, "set to", out transcript);
-        if (!ok)
-        {
-            _out.WriteLine(port.Name + ": '" + cmd + "' was not accepted. Got: " + Printable(transcript));
-        }
-        port.ExitConsole();
-        return ok;
-    }
-
     /// <summary>
-    /// Seconds before a frame counts as lost, for this rate: the user's --timeout, or longer
-    /// when the window itself takes longer than that to cross the line. With 12000 bytes in
-    /// flight at 9600 bit/s a frame needs 10 s just to get its turn; a 5 s timeout then wrote
-    /// off every frame as lost and the test failed a gateway that had done nothing wrong
-    /// (bench, 2026-11-08). Three window times plus two seconds leaves room for the USB path.
+    /// Find out whether the gateway speaks control frames and say so, because the two paths
+    /// behave differently on the bench.
     /// </summary>
-    private int TimeoutFor(uint rate)
+    public void Probe(GatewayLink link)
     {
-        double windowSeconds = _options.WindowBytes * 8.0 / rate;
-        int needed = (int)Math.Ceiling((3.0 * windowSeconds) + 2.0);
-        return Math.Max(_options.TimeoutSeconds, needed);
+        GatewayCommandPath path = link.Probe(500, out string transcript, _options.UseConsole);
+        switch (path)
+        {
+            case GatewayCommandPath.ControlFrames:
+                _out.WriteLine(link.Name + ": " + link.Identity!.Name + " " + link.Identity.Version
+                               + ", control frames (BAUD is set without leaving forwarding mode).");
+                break;
+            case GatewayCommandPath.TextConsole:
+                _out.WriteLine(link.Name + ": no HELLO reply, using the ESC ESC ESC text console "
+                               + "(each probe frame went onto the line and counts as one bad frame there).");
+                break;
+            default:
+                _out.WriteLine(link.Name + ": no HELLO reply and no console prompt. Is a gateway on this port? Got: "
+                               + TrafficTest.Printable(transcript));
+                break;
+        }
     }
 
-    private void RunRate(uint rate, TrafficDirection[] directions, int timeoutSeconds, CancellationToken cancel)
+    /// <inheritdoc/>
+    public void Message(string text)
     {
-        for (int d = 0; d < directions.Length; d++)
-        {
-            directions[d].Reset();
-        }
-        if (timeoutSeconds != _options.TimeoutSeconds)
-        {
-            _out.WriteLine(rate.ToString(CultureInfo.InvariantCulture) + " bit/s: timeout raised to "
-                           + timeoutSeconds + " s, the window takes "
-                           + (_options.WindowBytes * 8.0 / rate).ToString("F1", CultureInfo.InvariantCulture)
-                           + " s to cross the line.");
-        }
-
-        long start = Stopwatch.GetTimestamp();
-        long end = start + Stopwatch.Frequency * _options.SecondsPerRate;
-        long nextStatus = start + Stopwatch.Frequency;
-        long now = start;
-
-        while (now < end && !cancel.IsCancellationRequested)
-        {
-            bool busy = false;
-            for (int d = 0; d < directions.Length; d++)
-            {
-                busy |= directions[d].Pump(now, true);
-            }
-            if (now >= nextStatus)
-            {
-                PrintStatus(rate, directions, now - start, "");
-                nextStatus += Stopwatch.Frequency;
-            }
-            // Sleep only when nothing moved. On Windows Thread.Sleep(1) can be a whole timer
-            // tick (up to 15.6 ms), which would put a ceiling on the round trip and so on the
-            // throughput a window allows.
-            if (!busy)
-            {
-                Thread.Sleep(1);
-            }
-            now = Stopwatch.GetTimestamp();
-        }
-        long sendingTicks = now - start;
-
-        // Drain: let what is in flight come home, up to the timeout.
-        long drainEnd = now + Stopwatch.Frequency * timeoutSeconds;
-        bool pending = true;
-        while (pending && now < drainEnd)
-        {
-            pending = false;
-            for (int d = 0; d < directions.Length; d++)
-            {
-                _ = directions[d].Pump(now, false);
-                pending |= directions[d].Pending > 0;
-            }
-            Thread.Sleep(2);
-            now = Stopwatch.GetTimestamp();
-        }
-        for (int d = 0; d < directions.Length; d++)
-        {
-            _ = directions[d].Pump(now + Stopwatch.Frequency * timeoutSeconds, false);
-            // Throughput is measured over sending plus drain: frames that arrive during the
-            // drain were on the line during it, so counting them against the sending time
-            // alone would overstate the rate (11.6 kbit/s on a 9600 bit/s line, seen once).
-            directions[d].Statistics.ElapsedTicks = now - start;
-        }
-
-        PrintStatus(rate, directions, now - start, " done");
-        _out.WriteLine();
-        _results.Add(new RateResult(rate, directions, null));
+        _out.WriteLine(text);
     }
 
-    private void PrintStatus(uint rate, TrafficDirection[] directions, long elapsedTicks, string suffix)
+    /// <inheritdoc/>
+    public void Status(uint rate, TrafficDirection[] directions, long elapsedTicks, bool done)
     {
         StringBuilder sb = new StringBuilder();
         sb.Append(rate.ToString(CultureInfo.InvariantCulture).PadLeft(7)).Append(" bit/s ");
@@ -217,13 +133,23 @@ public sealed class TestRun
               .Append(" lost ").Append(s.FramesLost)
               .Append(' ').Append(kbit.ToString("F1", CultureInfo.InvariantCulture)).Append(" kbit/s");
         }
-        sb.Append(suffix);
+        if (done)
+        {
+            sb.Append(" done");
+        }
         _out.Write('\r');
         _out.Write(sb.ToString().PadRight(_statusWidth));
-        if (suffix.Length > 0)
+        if (done)
         {
             _out.WriteLine();
+            _out.WriteLine();
         }
+    }
+
+    /// <inheritdoc/>
+    public void RateFinished(RateResult result)
+    {
+        _results.Add(result);
     }
 
     /// <summary>
@@ -254,13 +180,12 @@ public sealed class TestRun
         for (int i = 0; i < _results.Count; i++)
         {
             RateResult r = _results[i];
-            for (int d = 0; d < r.Directions.Length; d++)
+            for (int d = 0; d < r.Statistics.Length; d++)
             {
-                // The frozen copy, not the live object: the directions are reused per rate.
                 TrafficStatistics s = r.Statistics[d];
                 string line = string.Format(CultureInfo.InvariantCulture,
                     "{0,7}  {1,-5}  {2,6}  {3,6}  {4,6}  {5,7}  {6,5}  {7,5}  {8,7}  {9,7:F1}  {10,8:F1}/{11,-8:F1}  {12}",
-                    r.Rate, r.Directions[d].Name, s.FramesSent, s.FramesOk, s.FramesBadFcs,
+                    r.Rate, r.DirectionNames[d], s.FramesSent, s.FramesOk, s.FramesBadFcs,
                     s.FramesCorrupt, s.FramesLost, s.FramesLate, s.DecoderDropped, s.KilobitPerSecond,
                     s.RoundTripMeanMs, s.RoundTripMaxMs,
                     r.Error ?? (s.Passed ? "PASS" : "FAIL"));
@@ -268,76 +193,5 @@ public sealed class TestRun
             }
         }
         _out.WriteLine();
-    }
-
-    private static string Printable(string text)
-    {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < text.Length && sb.Length < 120; i++)
-        {
-            char c = text[i];
-            sb.Append(c >= ' ' && c < 127 ? c : '.');
-        }
-        return sb.ToString();
-    }
-
-    private sealed class RateResult
-    {
-        public RateResult(uint rate, TrafficDirection[] directions, string? error)
-        {
-            Rate = rate;
-            Directions = new TrafficDirection[directions.Length];
-            Statistics = new TrafficStatistics[directions.Length];
-            for (int i = 0; i < directions.Length; i++)
-            {
-                Directions[i] = directions[i];
-                // The direction objects are reused per rate, so freeze a copy of the numbers.
-                Statistics[i] = Copy(directions[i].Statistics);
-            }
-            Error = error;
-        }
-
-        public uint Rate { get; }
-        public TrafficDirection[] Directions { get; }
-        public TrafficStatistics[] Statistics { get; }
-        public string? Error { get; }
-
-        public bool Passed
-        {
-            get
-            {
-                if (Error != null)
-                {
-                    return false;
-                }
-                bool ok = true;
-                for (int i = 0; i < Statistics.Length; i++)
-                {
-                    ok &= Statistics[i].Passed;
-                }
-                return ok;
-            }
-        }
-
-        private static TrafficStatistics Copy(TrafficStatistics s)
-        {
-            return new TrafficStatistics
-            {
-                FramesSent = s.FramesSent,
-                BytesSent = s.BytesSent,
-                EncodedBytesSent = s.EncodedBytesSent,
-                FramesReceived = s.FramesReceived,
-                FramesOk = s.FramesOk,
-                BytesOk = s.BytesOk,
-                FramesBadFcs = s.FramesBadFcs,
-                FramesCorrupt = s.FramesCorrupt,
-                FramesLost = s.FramesLost,
-                FramesLate = s.FramesLate,
-                DecoderDropped = s.DecoderDropped,
-                RoundTripTicksTotal = s.RoundTripTicksTotal,
-                RoundTripTicksMax = s.RoundTripTicksMax,
-                ElapsedTicks = s.ElapsedTicks,
-            };
-        }
     }
 }
