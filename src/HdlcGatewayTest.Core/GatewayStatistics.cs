@@ -126,6 +126,8 @@ public sealed class GatewayStatistics
         // Fields 35..40 (announced, build pending): wraps on tud_cdc_n_write / _write_flush.
         "cdc_write_calls", "cdc_write_requested", "cdc_write_accepted", "cdc_flush_calls", "cdc_flush_bytes",
         "fifo_not_empty_after_write",
+        // Fields 41, 42, build 23:37:17: bytes handed minus endpoint bytes started, max and jumps.
+        "usb_lag_max", "usb_lag_events",
     };
 
     /// <summary>
