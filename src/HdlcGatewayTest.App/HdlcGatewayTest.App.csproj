@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The two-pane window. Lowercase exe name like the console tool (NAMING.md). -->
+    <AssemblyName>hdlc-gateway-tool</AssemblyName>
+    <RootNamespace>HdlcGatewayTest.App</RootNamespace>
+    <OutputType>WinExe</OutputType>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Avalonia's generated partial classes carry no XML comments; the rule that every public
+         member is documented is kept for the view models and services, not for XAML code-behind. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <!-- Avalonia pulls an old Tmds.DBus.Protocol for Linux D-Bus support that the .NET 10 SDK's
+         package audit flags; RetroTerm pins the patched line the same way. -->
+    <PackageReference Include="Tmds.DBus.Protocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HdlcGatewayTest.Core\HdlcGatewayTest.Core.csproj" />
+    <ProjectReference Include="..\HdlcGatewayTest.Gateway\HdlcGatewayTest.Gateway.csproj" />
+    <ProjectReference Include="..\HdlcGatewayTest.Mcp\HdlcGatewayTest.Mcp.csproj" />
+    <ProjectReference Include="..\HdlcGatewayTest.Serial\HdlcGatewayTest.Serial.csproj" />
+  </ItemGroup>
+
+</Project>

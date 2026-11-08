@@ -1,6 +1,7 @@
 name: release
-# Push a tag like v1.2.3 and this builds, tests and publishes hdlc-loopback as a single
-# self-contained executable, writes 1.2.3 into it, and attaches the zip to a GitHub release.
+# Push a tag like v1.2.3 and this builds, tests and publishes hdlc-loopback and
+# hdlc-gateway-tool as single self-contained executables, writes 1.2.3 into them, and attaches
+# the zip (with the README, whose MCP section is the set-up guide) to a GitHub release.
 # A tag with a hyphen (v1.2.3-rc.1) makes a pre-release.
 on:
   push:
@@ -43,7 +44,7 @@ jobs:
 
       - name: Zip
         shell: pwsh
-        run: Compress-Archive -Path src/publish/win-x64/* -DestinationPath "HdlcGatewayTest-$env:VERSION-win-x64.zip"
+        run: Compress-Archive -Path src/publish/win-x64/*, README.md, src/docs/distribution-mcp.json -DestinationPath "HdlcGatewayTest-$env:VERSION-win-x64.zip"
 
       - uses: softprops/action-gh-release@v2
         with:

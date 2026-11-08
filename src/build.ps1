@@ -1,16 +1,18 @@
 <#
 .SYNOPSIS
-  Builds, tests and publishes hdlc-loopback as a SINGLE self-contained executable.
+  Builds, tests and publishes hdlc-loopback and hdlc-gateway-tool, each a SINGLE self-contained
+  executable.
 
 .DESCRIPTION
-  One .exe with no .dll beside it and no .NET install needed on the target machine. The
-  switches that achieve that, because each one matters:
+  Two .exe files with no .dll beside them and no .NET install needed on the target machine.
+  The switches that achieve that, because each one matters:
 
     PublishSingleFile                    packs the managed assemblies into the exe
     IncludeNativeLibrariesForSelfExtract native libraries too (System.IO.Ports has one)
     SatelliteResourceLanguages=en        no per-language resource subdirectories
     DebugType=none                       no .pdb beside the exe
-    EnableCompressionInSingleFile        roughly halves the size; self-contained only
+    EnableCompressionInSingleFile        roughly halves the size; self-contained only. On for
+                                         the console tool, off for the window (cold start)
 
   The tests run first and a failure stops the publish.
 
@@ -76,7 +78,6 @@ if (-not $SkipTests) {
     if ($LASTEXITCODE -ne 0) { throw 'tests failed - nothing published.' }
 }
 
-Write-Host '== Publish hdlc-loopback'
 $publishArgs = @(
     '-c', $Configuration
     '-r', $Runtime
@@ -86,11 +87,24 @@ $publishArgs = @(
     '-p:SatelliteResourceLanguages=en'
     '-p:DebugType=none'
     '-p:GenerateDocumentationFile=false'
-    '-p:EnableCompressionInSingleFile=true'
 )
 New-Item -ItemType Directory -Force $Output | Out-Null
-dotnet publish (Join-Path $root 'HdlcGatewayTest.Loopback\HdlcGatewayTest.Loopback.csproj') @publishArgs -o $Output @common
-if ($LASTEXITCODE -ne 0) { throw 'publish failed' }
+
+Write-Host '== Publish hdlc-loopback'
+# Compressed: a console tool is started for one run, the cold-start cost does not matter.
+dotnet publish (Join-Path $root 'HdlcGatewayTest.Loopback\HdlcGatewayTest.Loopback.csproj') @publishArgs `
+    '-p:EnableCompressionInSingleFile=true' -o $Output @common
+if ($LASTEXITCODE -ne 0) { throw 'publish of hdlc-loopback failed' }
+
+Write-Host '== Publish hdlc-gateway-tool'
+# NOT compressed: RetroTerm measured the decompression on every cold start of an Avalonia app
+# and chose launch speed over file size; the same choice here (plan decision 2026-11-08).
+dotnet publish (Join-Path $root 'HdlcGatewayTest.App\HdlcGatewayTest.App.csproj') @publishArgs -o $Output @common
+if ($LASTEXITCODE -ne 0) { throw 'publish of hdlc-gateway-tool failed' }
+# The Skia and HarfBuzz native packages ship their own .pdb symbol files (libSkiaSharp.pdb,
+# libHarfBuzzSharp.pdb, 100 MB together) and DebugType=none does not touch native symbols. They
+# are of no use to anyone running the tool; drop them so the folder holds only the two exes.
+Get-ChildItem $Output -Filter 'lib*.pdb' | Remove-Item -Force
 
 Write-Host ''
 Get-ChildItem $Output -File | ForEach-Object {

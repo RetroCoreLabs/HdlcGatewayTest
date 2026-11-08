@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HdlcGatewayTest.App.ViewModels"
+        xmlns:views="using:HdlcGatewayTest.App.Views"
+        x:Class="HdlcGatewayTest.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{Binding Title}"
+        Width="1500" Height="950" MinWidth="900" MinHeight="600">
+    <Grid RowDefinitions="*,Auto,Auto,Auto">
+        <!-- The two panes side by side. -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,4,*">
+            <views:GatewayPaneView Grid.Column="0" DataContext="{Binding PaneA}" />
+            <GridSplitter Grid.Column="1" Background="Gray" ResizeDirection="Columns" />
+            <views:GatewayPaneView Grid.Column="2" DataContext="{Binding PaneB}" />
+        </Grid>
+
+        <!-- The traffic test. -->
+        <views:TrafficTestView Grid.Row="1" DataContext="{Binding Traffic}" />
+
+        <!-- MCP call log, shown on demand. -->
+        <ListBox Grid.Row="2" Classes="mono" FontSize="11" MaxHeight="140"
+                 ItemsSource="{Binding McpLog}" IsVisible="{Binding ShowMcpLog}" />
+
+        <!-- Status bar with the MCP controls. -->
+        <DockPanel Grid.Row="3" Margin="8,4" LastChildFill="True">
+            <CheckBox DockPanel.Dock="Left" Content="MCP server" IsChecked="{Binding McpEnabled}"
+                      ToolTip.Tip="Let an AI client (Claude Code, ...) drive this window over MCP on localhost. Remembered." />
+            <TextBlock DockPanel.Dock="Left" Text="port" VerticalAlignment="Center" Margin="12,0,4,0" />
+            <NumericUpDown DockPanel.Dock="Left" Value="{Binding McpPort}" Minimum="1" Maximum="65535" Increment="1"
+                           FormatString="0" Width="120" ShowButtonSpinner="False" />
+            <Button DockPanel.Dock="Left" Content="MCP log" Margin="12,0,0,0" Command="{Binding ToggleMcpLogCommand}" />
+            <TextBlock Text="{Binding McpStatus}" VerticalAlignment="Center" Margin="16,0,0,0" />
+        </DockPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>HdlcGatewayTest.Serial</AssemblyName>
+    <RootNamespace>HdlcGatewayTest.Serial</RootNamespace>
+    <!-- The one place System.IO.Ports is referenced: the COM-port transport, the port list and
+         the transport factory the hosts hand to the session layer. Kept out of Core so Core
+         stays pure and testable on any machine. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HdlcGatewayTest.Core\HdlcGatewayTest.Core.csproj" />
+    <ProjectReference Include="..\HdlcGatewayTest.Gateway\HdlcGatewayTest.Gateway.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>HdlcGatewayTest.Gateway</AssemblyName>
+    <RootNamespace>HdlcGatewayTest.Gateway</RootNamespace>
+    <!-- The session layer every face shares (GUI, MCP, CLI): one gateway with a role, its frame
+         log and console log, and the set of two with the pump thread and the traffic test.
+         Transport-agnostic: Core interfaces only, so it is tested with fakes. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HdlcGatewayTest.Core\HdlcGatewayTest.Core.csproj" />
+  </ItemGroup>
+
+</Project>

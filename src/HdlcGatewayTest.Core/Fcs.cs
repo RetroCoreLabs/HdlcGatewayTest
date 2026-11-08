@@ -21,6 +21,15 @@ public static class Fcs
     /// </summary>
     public const ushort Good = 0xF0B8;
 
+    /// <summary>
+    /// What the CRC register holds after a control frame (<see cref="ControlFrame"/>) whose
+    /// check bytes are the register stored WITHOUT inversion. A CRC is linear, so appending the
+    /// un-inverted register always leaves zero; appending the inverted register (the HDLC FCS)
+    /// always leaves <see cref="Good"/>. The two can never coincide, which is what lets control
+    /// frames and data frames share one channel without a type byte.
+    /// </summary>
+    public const ushort ControlGood = 0x0000;
+
     private static readonly ushort[] s_table = BuildTable();
 
     /// <summary>
@@ -79,6 +88,38 @@ public static class Fcs
             return false;
         }
         return Compute(frameWithFcs) == Good;
+    }
+
+    /// <summary>
+    /// Write the control-frame check for the first <c>frame.Length - 2</c> bytes into the last
+    /// two bytes: the CRC register NOT inverted, low byte first.
+    /// </summary>
+    /// <param name="frame">The control frame with two spare bytes at the end.</param>
+    /// <exception cref="ArgumentException">The span is shorter than two bytes.</exception>
+    public static void AppendControl(Span<byte> frame)
+    {
+        if (frame.Length < 2)
+        {
+            throw new ArgumentException("A frame needs room for the two check bytes.", nameof(frame));
+        }
+        ushort crc = Compute(frame.Slice(0, frame.Length - 2));
+        frame[frame.Length - 2] = (byte)(crc & 0xFF);
+        frame[frame.Length - 1] = (byte)(crc >> 8);
+    }
+
+    /// <summary>
+    /// Check a control frame: the CRC over every byte including the check must leave
+    /// <see cref="ControlGood"/> in the register.
+    /// </summary>
+    /// <param name="frameWithCheck">The whole frame as received.</param>
+    /// <returns>True when the check matches; false otherwise or for fewer than 2 bytes.</returns>
+    public static bool IsGoodControl(ReadOnlySpan<byte> frameWithCheck)
+    {
+        if (frameWithCheck.Length < 2)
+        {
+            return false;
+        }
+        return Compute(frameWithCheck) == ControlGood;
     }
 
     private static ushort[] BuildTable()

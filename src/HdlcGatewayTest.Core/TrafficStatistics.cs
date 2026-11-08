@@ -87,6 +87,31 @@ public sealed class TrafficStatistics
     /// <summary>Longest round trip of a good frame in milliseconds.</summary>
     public double RoundTripMaxMs => TicksToMs(RoundTripTicksMax);
 
+    /// <summary>
+    /// A frozen copy. The direction objects are reused per rate, so a report keeps copies.
+    /// </summary>
+    /// <returns>A new object with the same numbers.</returns>
+    public TrafficStatistics Clone()
+    {
+        return new TrafficStatistics
+        {
+            FramesSent = FramesSent,
+            BytesSent = BytesSent,
+            EncodedBytesSent = EncodedBytesSent,
+            FramesReceived = FramesReceived,
+            FramesOk = FramesOk,
+            BytesOk = BytesOk,
+            FramesBadFcs = FramesBadFcs,
+            FramesCorrupt = FramesCorrupt,
+            FramesLost = FramesLost,
+            FramesLate = FramesLate,
+            DecoderDropped = DecoderDropped,
+            RoundTripTicksTotal = RoundTripTicksTotal,
+            RoundTripTicksMax = RoundTripTicksMax,
+            ElapsedTicks = ElapsedTicks,
+        };
+    }
+
     /// <summary>Set every counter to zero.</summary>
     public void Clear()
     {

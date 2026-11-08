@@ -48,6 +48,17 @@ public sealed class FcsTests
     }
 
     [Test]
+    public void AppendControl_LeavesZeroResidue_AndNeverLooksLikeAnFcs()
+    {
+        byte[] frame = new byte[] { 0xFE, 0x02, 0x07, 0x00, (byte)'S', (byte)'T', (byte)'A', (byte)'T', 0, 0 };
+        Fcs.AppendControl(frame);
+        Assert.That(Fcs.Compute(frame), Is.EqualTo(Fcs.ControlGood));
+        Assert.That(Fcs.IsGoodControl(frame), Is.True);
+        Assert.That(Fcs.IsGood(frame), Is.False);
+        Assert.That(Fcs.ControlGood, Is.Not.EqualTo(Fcs.Good));
+    }
+
+    [Test]
     public void Compute_OverGoodFrameLeavesResidue()
     {
         // RFC 1662 appendix C: the CRC over data plus FCS is always 0xF0B8.

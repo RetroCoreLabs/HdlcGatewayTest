@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>HdlcGatewayTest.Mcp</AssemblyName>
+    <RootNamespace>HdlcGatewayTest.Mcp</RootNamespace>
+    <!-- The MCP server an AI client talks to: the same tools whether hosted by the GUI window or
+         by the console tool's mcp switch. Pattern copied from RetroTerm.Mcp: Kestrel on 127.0.0.1
+         only, streamable HTTP at /mcp, tools built by hand and dispatched by name. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Kestrel + routing for the streamable-HTTP MCP endpoint. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HdlcGatewayTest.Core\HdlcGatewayTest.Core.csproj" />
+    <ProjectReference Include="..\HdlcGatewayTest.Gateway\HdlcGatewayTest.Gateway.csproj" />
+  </ItemGroup>
+
+</Project>

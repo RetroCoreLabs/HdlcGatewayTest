@@ -46,6 +46,12 @@ public sealed class ByteFrameDecoder
     /// <summary>True between frames: no frame bytes collected since the last flag.</summary>
     public bool IsIdle => !_active || _done || _length == 0;
 
+    /// <summary>
+    /// True once a flag has been seen. Before that every byte is ignored, which is how console
+    /// text and the boot banner pass by without being taken for frame data.
+    /// </summary>
+    public bool IsActive => _active;
+
     /// <summary>Return to the idle state, waiting for a flag.</summary>
     public void Reset()
     {
