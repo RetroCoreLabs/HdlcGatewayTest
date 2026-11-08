@@ -175,18 +175,22 @@ public sealed class GatewayPort : IDisposable
         // Anything the gateway printed earlier (a version banner, a stale prompt) is not ours.
         _ = ReadTextFor(200);
 
-        // The gateway may be in any of its three modes from an earlier session, and the
-        // firmware only looks for ESC ESC ESC while its byte-frame decoder is between frames.
-        // Any stray byte (even a CR) counts as the start of a frame and hides the ESCs, which
-        // is why the probe below starts with a flag: a flag always puts the decoder back to
-        // "between frames". In DEBUG the flag and the ESCs are just echoed keystrokes.
+        // The gateway may be in any of its three modes from an earlier session, and both
+        // firmwares only look for ESC ESC ESC while their byte-frame decoder is between
+        // frames. The order of the probes matters, and the two gateways disagree on one byte:
+        // a flag puts HDLCGW's decoder back to "between frames", but OPENS a frame on
+        // RC422Dev, whose decoder has not seen a flag yet after boot; three ESCs sent after a
+        // flag there become frame data, the junk frame is forwarded, and RC422Dev's console
+        // is locked until a reset (that happened on the bench 2026-11-08). So:
         //
-        //   FORWARDING: flag, ESC ESC ESC -> prompt.
-        //   DEBUG:      the bytes land in the input line; CR runs that junk line
-        //               ("Unknown command") and prints a prompt.
-        //   PACKET_GEN: ESC ESC ESC switches to FORWARDING; the CR then pollutes the
-        //               decoder, so the last step repeats flag + ESC ESC ESC.
-        Write(new byte[] { ByteFrame.Flag, 0x1B, 0x1B, 0x1B });
+        //   1. plain ESC ESC ESC    FORWARDING on either gateway right after boot -> prompt.
+        //                           PACKET_GEN -> back to FORWARDING, no prompt yet.
+        //   2. CR                   DEBUG: the ESCs sit in the input line, CR runs that junk
+        //                           line ("Unknown command") and prints a prompt.
+        //   3. flag, ESC ESC ESC    HDLCGW left mid-frame by an earlier session (the CR of
+        //                           step 2 has polluted its decoder too): the flag clears it.
+        //                           RC422Dev never gets here when it was in FORWARDING.
+        Write(new byte[] { 0x1B, 0x1B, 0x1B });
         if (WaitForPrompt(1000, out transcript))
         {
             return true;
