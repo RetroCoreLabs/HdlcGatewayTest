@@ -1,0 +1,21 @@
+name: build
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: src/global.json
+      - run: dotnet restore
+        working-directory: src
+      - run: dotnet build -c Release --no-restore -warnaserror -nodeReuse:false
+        working-directory: src
+      # The unit tests cover the pure code (FCS, byte stuffing, test frames, bookkeeping).
+      # Anything that needs a gateway on a serial port is not a unit test and is not here.
+      - run: dotnet test -c Release --no-build -nodeReuse:false
+        working-directory: src

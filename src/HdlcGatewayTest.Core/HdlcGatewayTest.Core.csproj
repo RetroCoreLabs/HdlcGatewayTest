@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>HdlcGatewayTest.Core</AssemblyName>
+    <RootNamespace>HdlcGatewayTest.Core</RootNamespace>
+    <!-- Pure code: FCS, byte stuffing, test frames, bookkeeping. No serial port, no console,
+         so every line of it is unit tested on any machine. -->
+  </PropertyGroup>
+
+</Project>

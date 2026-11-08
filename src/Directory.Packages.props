@@ -1,0 +1,13 @@
+<Project>
+  <!-- Central package versions. No Version= on any PackageReference. -->
+  <ItemGroup>
+    <!-- Serial port access on .NET Core / .NET 5+; not part of the shared framework. -->
+    <PackageVersion Include="System.IO.Ports" Version="10.0.14" />
+
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageVersion Include="NUnit" Version="4.0.1" />
+    <PackageVersion Include="NUnit.Analyzers" Version="4.0.1" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="4.5.0" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.0" />
+  </ItemGroup>
+</Project>

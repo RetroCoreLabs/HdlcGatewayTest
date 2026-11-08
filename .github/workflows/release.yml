@@ -1,0 +1,52 @@
+name: release
+# Push a tag like v1.2.3 and this builds, tests and publishes hdlc-loopback as a single
+# self-contained executable, writes 1.2.3 into it, and attaches the zip to a GitHub release.
+# A tag with a hyphen (v1.2.3-rc.1) makes a pre-release.
+on:
+  push:
+    tags: [ 'v*' ]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: src/global.json
+
+      - name: Version from the tag
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+([-+][0-9A-Za-z.-]+)?)$') {
+            throw "tag '$tag' is not vMAJOR.MINOR.PATCH, for example v1.2.3 or v1.2.3-rc.1"
+          }
+          "VERSION=$($Matches[1])" >> $env:GITHUB_ENV
+
+      - name: Build, test and publish
+        shell: pwsh
+        working-directory: src
+        run: ./build.ps1 -Version $env:VERSION
+
+      - name: Check the version is in the binaries
+        shell: pwsh
+        run: |
+          $exes = Get-ChildItem src/publish/win-x64 -Filter *.exe
+          if (-not $exes) { throw 'no executables were published' }
+          foreach ($e in $exes) {
+            $pv = $e.VersionInfo.ProductVersion
+            "{0}: product version {1}, file version {2}" -f $e.Name, $pv, $e.VersionInfo.FileVersion
+            if (-not $pv.StartsWith($env:VERSION)) { throw "$($e.Name) reports '$pv', expected $env:VERSION" }
+          }
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path src/publish/win-x64/* -DestinationPath "HdlcGatewayTest-$env:VERSION-win-x64.zip"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: HdlcGatewayTest-${{ env.VERSION }}-win-x64.zip
+          generate_release_notes: true
+          prerelease: ${{ contains(env.VERSION, '-') }}

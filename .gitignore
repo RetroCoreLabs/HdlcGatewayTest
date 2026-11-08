@@ -1,0 +1,15 @@
+## .NET
+[Bb]in/
+[Oo]bj/
+TestResults/
+*.user
+*.suo
+.vs/
+*.nupkg
+*.snupkg
+
+## build.ps1 output - single-file executables, rebuildable
+publish/
+
+# Working notes for coding agents stay on disk, never in the repository
+CLAUDE.md

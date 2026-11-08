@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/HdlcGatewayTest.Core.Tests/HdlcGatewayTest.Core.Tests.csproj" />
+  </Folder>
+  <Project Path="HdlcGatewayTest.Core/HdlcGatewayTest.Core.csproj" />
+  <Project Path="HdlcGatewayTest.Loopback/HdlcGatewayTest.Loopback.csproj" />
+</Solution>

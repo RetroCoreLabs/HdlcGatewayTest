@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Command-line tool: short lowercase exe name that says what it does (NAMING.md). -->
+    <AssemblyName>hdlc-loopback</AssemblyName>
+    <RootNamespace>HdlcGatewayTest.Loopback</RootNamespace>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HdlcGatewayTest.Core\HdlcGatewayTest.Core.csproj" />
+  </ItemGroup>
+
+</Project>
