@@ -29,7 +29,7 @@ every frame that comes back (sequence, payload, FCS), drain, and freeze the coun
 table has one row per rate and direction: sent, OK, bad FCS, corrupt, lost, late, dropped,
 kilobit per second, round trip. `PASS` in every row gives exit code 0.
 
-`--size` is the frame length with FCS (126 by default, RC422Dev accepts at most 128), `--window`
+`--size` is the frame length with FCS (126 by default; HDLCGW and RC422Dev both take up to 1024), `--window`
 the encoded bytes in flight, `--timeout` the seconds before a frame counts as lost (raised
 automatically when the window takes longer than that to cross a slow line), `--no-baud` keeps the
 gateways' clocks, `--verbose N` explains the first N bad frames, `--log FILE` copies everything

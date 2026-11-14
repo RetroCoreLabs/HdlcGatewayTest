@@ -26,8 +26,8 @@ public static class ByteFrame
     public const byte EscapeMask = 0x20;
 
     /// <summary>
-    /// Longest frame HDLCGW accepts or forwards, FCS included. RC422Dev's limit is 128; a
-    /// longer frame shows as an overflow on its console, not as a CRC error.
+    /// Longest frame HDLCGW and RC422Dev accept or forward, FCS included (both report
+    /// maxframe=1024 in HELLO; measured 2026-11-14: 1024-byte frames both ways between HDLCGW and RC422Dev at 307200, 0 bad).
     /// </summary>
     public const int MaxFrameLength = 1024;
 

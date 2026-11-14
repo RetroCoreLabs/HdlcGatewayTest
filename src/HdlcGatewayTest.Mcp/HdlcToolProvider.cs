@@ -202,7 +202,7 @@ public sealed class HdlcToolProvider
                     ("two_gateways", "boolean", false, "A->B and B->A instead of loopback on A; default false"),
                     ("rates", "string", false, "Comma-separated bit rates; default 9600,19200,38400,115200,307200,983000"),
                     ("seconds", "integer", false, "Seconds per rate; default 120"),
-                    ("size", "integer", false, "Frame length including FCS, 10..1024; default 126 (RC422Dev max 128)"),
+                    ("size", "integer", false, "Frame length including FCS, 10..1024; default 126 (both gateways take up to 1024)"),
                     ("window", "integer", false, "Encoded bytes in flight per direction; default 3000"),
                     ("timeout", "integer", false, "Seconds before a frame counts as lost; default 5"),
                     ("no_baud", "boolean", false, "Do not set BAUD; keep the gateways' clocks"),
