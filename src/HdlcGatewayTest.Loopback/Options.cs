@@ -28,7 +28,7 @@ public sealed class Options
     public int SecondsPerRate = 120;
 
     /// <summary>
-    /// Frame length including FCS. 126 fits RC422Dev's 128-byte limit; HDLCGW takes up to 1024.
+    /// Frame length including FCS. Both gateways take up to 1024 (measured 2026-11-14: 1024-byte frames both ways between HDLCGW and RC422Dev at 307200, 0 bad).
     /// </summary>
     public int FrameLength = 126;
 
@@ -220,7 +220,7 @@ public sealed class Options
         "                           (default 9600,19200,38400,115200,307200,983000)\r\n" +
         "  --seconds N              seconds of traffic per rate (default 120)\r\n" +
         "  --size N                 frame length including FCS, 10..1024 (default 126;\r\n" +
-        "                           RC422Dev accepts at most 128, HDLCGW up to 1024)\r\n" +
+        "                           both gateways take up to 1024)\r\n" +
         "  --window N               encoded bytes in flight per direction (default 3000)\r\n" +
         "  --timeout N              seconds before an unseen frame counts as lost (default 5)\r\n" +
         "  --no-baud                do not set BAUD; keep the gateways' clocks\r\n" +
