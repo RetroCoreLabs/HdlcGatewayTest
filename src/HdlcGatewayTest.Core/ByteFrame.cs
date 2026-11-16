@@ -26,10 +26,12 @@ public static class ByteFrame
     public const byte EscapeMask = 0x20;
 
     /// <summary>
-    /// Longest frame HDLCGW and RC422Dev accept or forward, FCS included (both report
-    /// maxframe=1024 in HELLO; measured 2026-11-14: 1024-byte frames both ways between HDLCGW and RC422Dev at 307200, 0 bad).
+    /// Longest frame this program sends or accepts, FCS included: libhdlc's BYTE_FRAME_MAX
+    /// (4112 since libxmsg f83e467). The gateways' own limit is what HELLO reports as maxframe
+    /// (4105 for both HDLCGW and RC422Dev on that library), so frames of 4106..4112 bytes can be
+    /// sent on purpose to check that a gateway refuses them.
     /// </summary>
-    public const int MaxFrameLength = 1024;
+    public const int MaxFrameLength = 4112;
 
     /// <summary>
     /// Worst-case encoded size of a frame: every byte escaped, plus two flags.

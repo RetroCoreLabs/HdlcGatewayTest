@@ -16,7 +16,7 @@ public sealed class TrafficTestSettings
     /// <summary>Seconds of traffic per rate.</summary>
     public int SecondsPerRate = 120;
 
-    /// <summary>Frame length including FCS, 10..1024.</summary>
+    /// <summary>Frame length including FCS, 10..ByteFrame.MaxFrameLength (4112).</summary>
     public int FrameLength = 126;
 
     /// <summary>Most encoded bytes in flight per direction.</summary>

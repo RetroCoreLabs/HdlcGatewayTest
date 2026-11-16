@@ -28,7 +28,8 @@ public sealed class Options
     public int SecondsPerRate = 120;
 
     /// <summary>
-    /// Frame length including FCS. Both gateways take up to 1024 (measured 2026-11-14: 1024-byte frames both ways between HDLCGW and RC422Dev at 307200, 0 bad).
+    /// Frame length including FCS, up to ByteFrame.MaxFrameLength (4112). Both gateways take up to
+    /// 4105 since libxmsg f83e467 (their HELLO maxframe); longer frames test that they refuse them.
     /// </summary>
     public int FrameLength = 126;
 
@@ -219,8 +220,8 @@ public sealed class Options
         "  --rates 9600,19200,...   transmit clock rates to run, one after the other\r\n" +
         "                           (default 9600,19200,38400,115200,307200,983000)\r\n" +
         "  --seconds N              seconds of traffic per rate (default 120)\r\n" +
-        "  --size N                 frame length including FCS, 10..1024 (default 126;\r\n" +
-        "                           both gateways take up to 1024)\r\n" +
+        "  --size N                 frame length including FCS, 10..4112 (default 126;\r\n" +
+        "                           both gateways take up to 4105, see HELLO maxframe)\r\n" +
         "  --window N               encoded bytes in flight per direction (default 3000)\r\n" +
         "  --timeout N              seconds before an unseen frame counts as lost (default 5)\r\n" +
         "  --no-baud                do not set BAUD; keep the gateways' clocks\r\n" +
