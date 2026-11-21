@@ -15,6 +15,15 @@ of that over MCP.
 
 **Latest build for Windows, Linux and macOS:** https://github.com/RetroCoreLabs/HdlcGatewayTest/releases/latest
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/RetroCoreLabs/HdlcGatewayTest/main/src/docs/screenshots/02-connected-version-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/RetroCoreLabs/HdlcGatewayTest/main/src/docs/screenshots/02-connected-version-light.png">
+  <img alt="The hdlc-gateway-tool window with two gateways connected: pane A on an HDLCGW board (COM10) and pane B on an RC422Dev Pico (COM18), each with its firmware console and its list of frames, and below them the Version tab comparing the two firmwares." src="https://raw.githubusercontent.com/RetroCoreLabs/HdlcGatewayTest/main/src/docs/screenshots/02-connected-version-light.png">
+</picture>
+
+More pictures of the window (frame decode, setup, traffic test, MCP) are in the
+[window's README](https://github.com/RetroCoreLabs/HdlcGatewayTest/blob/main/src/HdlcGatewayTest.App/README.md#screenshots).
+
 ## Why it exists
 
 A gateway between a PC and a synchronous HDLC line has a lot of stages a single test frame
