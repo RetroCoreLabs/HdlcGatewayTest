@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 1985-2026 Ronny Hansen
 
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -170,12 +172,42 @@ public sealed class Screenshots
         }
     }
 
+    /// <summary>Height of the drawn title line, in pixels.</summary>
+    private const int TitleHeight = 32;
+
+    /// <summary>Width of the drawn border, in pixels.</summary>
+    private const int BorderWidth = 1;
+
+    /// <summary>
+    /// Save the window's picture inside a drawn window frame: a border and a title line with the
+    /// window's own title. A headless capture holds only the client area, and without the frame
+    /// the picture ran straight into the README page around it (Ronny, 21 November 2026: "it flows
+    /// into the text and it's confusing"). The colours follow Windows 11's own frame in the light
+    /// and the dark theme.
+    /// </summary>
     private void Save(Window window, string name, string theme)
     {
         PumpFor(100);
         using WriteableBitmap? frame = window.CaptureRenderedFrame();
         Assert.That(frame, Is.Not.Null, name);
-        frame!.Save(Path.Combine(_outDir, name + "-" + theme + ".png"), PngBitmapEncoderOptions.Default);
+        bool dark = theme == "dark";
+        PixelSize inner = frame!.PixelSize;
+        PixelSize outer = new PixelSize(inner.Width + (2 * BorderWidth), inner.Height + TitleHeight + (2 * BorderWidth));
+        using RenderTargetBitmap framed = new RenderTargetBitmap(outer, new Vector(96, 96));
+        using (DrawingContext dc = framed.CreateDrawingContext())
+        {
+            SolidColorBrush border = new SolidColorBrush(dark ? Color.FromRgb(0x5A, 0x5A, 0x5A) : Color.FromRgb(0x9A, 0x9A, 0x9A));
+            SolidColorBrush bar = new SolidColorBrush(dark ? Color.FromRgb(0x20, 0x20, 0x20) : Color.FromRgb(0xF3, 0xF3, 0xF3));
+            IBrush text = dark ? Brushes.White : Brushes.Black;
+            dc.FillRectangle(border, new Rect(0, 0, outer.Width, outer.Height));
+            dc.FillRectangle(bar, new Rect(BorderWidth, BorderWidth, inner.Width, TitleHeight));
+            FormattedText title = new FormattedText(window.Title ?? string.Empty, CultureInfo.InvariantCulture,
+                                                    FlowDirection.LeftToRight, new Typeface(FontFamily.Default), 13, text);
+            dc.DrawText(title, new Point(BorderWidth + 12, BorderWidth + ((TitleHeight - title.Height) / 2)));
+            dc.DrawImage(frame, new Rect(0, 0, inner.Width, inner.Height),
+                         new Rect(BorderWidth, BorderWidth + TitleHeight, inner.Width, inner.Height));
+        }
+        framed.Save(Path.Combine(_outDir, name + "-" + theme + ".png"), PngBitmapEncoderOptions.Default);
     }
 
     private static void SelectTab(Window window, string header)
