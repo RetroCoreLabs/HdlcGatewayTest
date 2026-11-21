@@ -1,8 +1,51 @@
+# Build and test on every push and pull request, publish the two programs for Windows, Linux and
+# macOS, and turn a v* tag into a GitHub release carrying them. Modelled on RetroTerm's
+# build.yml (the other RetroCore Labs Avalonia program with releases), plus the nd100x lessons
+# RetroTerm lacks: a SHA256SUMS.txt, one top-level folder in every archive, the tag checked for
+# a real version, and the version proved inside the Windows binaries.
+#
+# THREE JOBS:
+#
+#   build    The badge in README.md. Windows: build with warnings as errors, run every test.
+#
+#   publish  hdlc-gateway-tool (the window) and hdlc-loopback (the command line), each a
+#            self-contained single file, for win-x64, linux-x64, osx-x64 and osx-arm64. Each is
+#            built ON ITS OWN operating system's runner by src/build.ps1, which runs the whole
+#            test suite first, so the tests are also proved on Linux and both kinds of Mac.
+#            What each platform gets:
+#              Windows  HdlcGatewayTest-<ver>-win-x64.zip: the two exes, README, LICENSE and the
+#                       MCP client settings example.
+#              Linux    HdlcGatewayTest-<ver>-linux-x64.tar.gz: the two programs, a menu entry,
+#                       the icon at the usual sizes and install.sh (src/packaging/linux).
+#              macOS    HdlcGatewayTest-<ver>-osx-<arch>.zip: HdlcGatewayTest.app (the window,
+#                       with an icon; Info.plist from src/packaging/macos) and hdlc-loopback.
+#                       Signed ad hoc, which Apple silicon needs to start it at all, and NOT
+#                       notarised: a downloaded copy needs the quarantine flag removed once.
+#            Every icon is drawn from src/assets/HdlcGatewayTest.svg.
+#            On a branch push the archives are workflow artifacts (90 days), named "dev".
+#
+#   release  Only on a tag vMAJOR.MINOR.PATCH (v1.2.3-rc.1 makes a pre-release), and only when
+#            build and all four publish legs are green. Attaches the four archives and
+#            SHA256SUMS.txt to a release for the tag.
+#
+# macOS Intel runs on macos-15-intel: RetroTerm found the macos-13 image retired (its job sat
+# queued with no runner). The live image list is the README of github.com/actions/runner-images.
 name: build
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
+  workflow_dispatch:
+
+# Never cancel a tag run: that is the run that makes the release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
@@ -21,3 +64,172 @@ jobs:
       # unit test and is not here.
       - run: dotnet test -c Release --no-build -nodeReuse:false
         working-directory: src
+
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-15-intel
+            rid: osx-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: src/global.json
+
+      # VERSION goes into the binaries (empty: VersionPrefix from Directory.Build.props).
+      # NAME is the archive and its top folder.
+      - name: Version from the tag
+        shell: bash
+        run: |
+          set -e
+          label=dev
+          version=
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            if ! echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$'; then
+              echo "::error::tag $GITHUB_REF_NAME is not vMAJOR.MINOR.PATCH, for example v1.2.3 or v1.2.3-rc.1"
+              exit 1
+            fi
+            label="$version"
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "NAME=HdlcGatewayTest-$label-${{ matrix.rid }}" >> "$GITHUB_ENV"
+
+      # build.ps1: build, run all tests (a failure stops here), publish both single files.
+      - name: Build, test and publish
+        shell: pwsh
+        run: |
+          $a = @('-Runtime', '${{ matrix.rid }}', '-Output', (Join-Path $env:GITHUB_WORKSPACE 'out/bin'))
+          if ($env:VERSION) { $a += @('-Version', $env:VERSION) }
+          ./src/build.ps1 @a
+          $loose = Get-ChildItem out/bin -Recurse -File | Where-Object { $_.Extension -in '.dll', '.pdb' }
+          if ($loose) { $loose | ForEach-Object { $_.FullName }; throw 'loose .dll/.pdb files: the programs are not standalone' }
+
+      - name: Windows - check the version is in the exes
+        if: runner.os == 'Windows' && env.VERSION != ''
+        shell: pwsh
+        run: |
+          foreach ($e in Get-ChildItem out/bin -Filter *.exe) {
+            $pv = $e.VersionInfo.ProductVersion
+            "{0}: product version {1}" -f $e.Name, $pv
+            if (-not $pv.StartsWith($env:VERSION)) { throw "$($e.Name) reports '$pv', expected $env:VERSION" }
+          }
+
+      - name: Windows - zip
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pkg = "out/pkg/$env:NAME"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item out/bin/hdlc-gateway-tool.exe, out/bin/hdlc-loopback.exe, README.md, LICENSE, src/docs/distribution-mcp.json $pkg
+          Compress-Archive -Path $pkg -DestinationPath "out/$env:NAME.zip"
+          Get-ChildItem $pkg
+
+      # Linux shows an icon through a .desktop file in the application menu, so the archive
+      # carries the menu entry, the icon at the hicolor sizes and install.sh (all under ~).
+      - name: Linux - tar.gz
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -e
+          sudo apt-get update -q
+          sudo apt-get install -y -q librsvg2-bin
+          pkg="out/pkg/$NAME"
+          mkdir -p "$pkg"
+          cp out/bin/hdlc-gateway-tool out/bin/hdlc-loopback "$pkg/"
+          cp src/packaging/linux/hdlc-gateway-tool.desktop src/packaging/linux/install.sh "$pkg/"
+          cp README.md LICENSE src/docs/distribution-mcp.json "$pkg/"
+          chmod +x "$pkg/hdlc-gateway-tool" "$pkg/hdlc-loopback" "$pkg/install.sh"
+          for s in 16 24 32 48 64 128 256 512; do
+            mkdir -p "$pkg/icons/${s}x${s}"
+            rsvg-convert -w $s -h $s src/assets/HdlcGatewayTest.svg -o "$pkg/icons/${s}x${s}/hdlc-gateway-tool.png"
+          done
+          mkdir -p "$pkg/icons/scalable"
+          cp src/assets/HdlcGatewayTest.svg "$pkg/icons/scalable/hdlc-gateway-tool.svg"
+          tar -C out/pkg -czf "out/$NAME.tar.gz" "$NAME"
+          tar -tvzf "out/$NAME.tar.gz"
+
+      # macOS only shows an icon for a .app bundle. The .icns is drawn at every size from the SVG.
+      - name: macOS - HdlcGatewayTest.app and zip
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          brew install librsvg
+          version="$VERSION"
+          if [ -z "$version" ]; then
+            version=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' src/Directory.Build.props | head -1)
+          fi
+          pkg="out/pkg/$NAME"
+          app="$pkg/HdlcGatewayTest.app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp out/bin/hdlc-gateway-tool "$app/Contents/MacOS/hdlc-gateway-tool"
+          chmod +x "$app/Contents/MacOS/hdlc-gateway-tool"
+          sed "s/__VERSION__/$version/g" src/packaging/macos/Info.plist > "$app/Contents/Info.plist"
+          plutil -lint "$app/Contents/Info.plist"
+          iconset=out/HdlcGatewayTest.iconset
+          mkdir -p "$iconset"
+          for s in 16 32 128 256 512; do
+            rsvg-convert -w $s -h $s src/assets/HdlcGatewayTest.svg -o "$iconset/icon_${s}x${s}.png"
+            rsvg-convert -w $((s*2)) -h $((s*2)) src/assets/HdlcGatewayTest.svg -o "$iconset/icon_${s}x${s}@2x.png"
+          done
+          iconutil -c icns "$iconset" -o "$app/Contents/Resources/HdlcGatewayTest.icns"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          cp out/bin/hdlc-loopback "$pkg/"
+          chmod +x "$pkg/hdlc-loopback"
+          codesign --force --sign - "$pkg/hdlc-loopback"
+          cp README.md LICENSE src/docs/distribution-mcp.json "$pkg/"
+          ditto -c -k --sequesterRsrc --keepParent "$pkg" "out/$NAME.zip"
+          find "$pkg" -type f -exec ls -la {} \;
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.NAME }}
+          path: |
+            out/${{ env.NAME }}.zip
+            out/${{ env.NAME }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [ build, publish ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          set -e
+          cd artifacts
+          ls -la
+          if [ "$(ls | wc -l)" -ne 4 ]; then echo "::error::expected 4 archives"; exit 1; fi
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: artifacts/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            Self-contained builds of the window (hdlc-gateway-tool) and the command-line tool (hdlc-loopback). No .NET install needed.
+
+            - **Windows x64**: `HdlcGatewayTest-*-win-x64.zip`. Unzip and run the exes.
+            - **Linux x64**: `HdlcGatewayTest-*-linux-x64.tar.gz`. Unpack, then `./install.sh` puts the window in the application menu with its icon (under ~/.local/share, no root), or run the programs straight from the folder. Serial ports usually need membership of the `dialout` group.
+            - **macOS**: `HdlcGatewayTest-*-osx-arm64.zip` (Apple silicon) or `-osx-x64.zip` (Intel). Unzip to get HdlcGatewayTest.app and hdlc-loopback. They are not notarised, so the first time run `xattr -dr com.apple.quarantine` on both.
+
+            `SHA256SUMS.txt` checks the downloads: `sha256sum -c SHA256SUMS.txt`. Setting up an AI client for the MCP server: see the README and `distribution-mcp.json` in each archive.
