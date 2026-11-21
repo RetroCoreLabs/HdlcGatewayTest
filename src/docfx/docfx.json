@@ -75,16 +75,17 @@
       },
       {
         "files": [
-          "icon.svg"
-        ]
+          "assets/HdlcGatewayTest.svg"
+        ],
+        "src": ".."
       }
     ],
     "output": "_site",
     "globalMetadata": {
       "_appName": "HdlcGatewayTest",
       "_appTitle": "HdlcGatewayTest",
-      "_appLogoPath": "icon.svg",
-      "_appFaviconPath": "icon.svg",
+      "_appLogoPath": "assets/HdlcGatewayTest.svg",
+      "_appFaviconPath": "assets/HdlcGatewayTest.svg",
       "_appFooter": "Copyright (c) 1985-2026 Ronny Hansen - MIT License - RetroCore Labs - <a href=\"https://github.com/RetroCoreLabs/HdlcGatewayTest\">Source on GitHub</a>",
       "_enableSearch": true,
       "_disableContribution": false,

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- HdlcGatewayTest: the PC side of the gateways. A PC screen split in two panes (the
+       window's pane A and pane B), frames passing between them, and a tick for a passed test.
+       Green on dark, so it can never be mistaken for the firmware's orange HDLCGW badge.
+       Drawn as strokes, not text, so every browser shows the same thing. -->
+  <rect width="1024" height="1024" fill="#03200f"/>
+  <g fill="none" stroke="#3ddc84" stroke-linecap="round" stroke-linejoin="round">
+    <!-- the screen, split into two panes, and its stand -->
+    <rect x="112" y="140" width="800" height="560" rx="56" stroke-width="40"/>
+    <path d="M512 160 V680" stroke-width="28"/>
+    <path d="M512 720 V830 M352 850 H672" stroke-width="40"/>
+    <!-- frames: pane A sends right, pane B sends left -->
+    <path d="M190 290 H420 M190 380 H360" stroke-width="30"/>
+    <path d="M604 290 H834 M664 380 H834" stroke-width="30"/>
+  </g>
+  <!-- the frame crossing between the panes -->
+  <path d="M300 500 H700 M640 455 L700 500 L640 545" fill="none" stroke="#ffffff"
+        stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- the tick: test passed -->
+  <path d="M560 610 L620 660 L760 560" fill="none" stroke="#ffd23f"
+        stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
