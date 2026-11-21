@@ -136,9 +136,13 @@ public sealed class GatewayPaneViewModelTests
         Assert.That(a.ShowHexBox, Is.True);
         a.HexText = "01 3F";
         a.SendHexCommand.Execute(null);
-        Assert.That(WaitUntil(() => a.Frames.Count > 0 && a.Frames[a.Frames.Count - 1].Record.Bytes.Length == 4
-                                    && a.Frames[a.Frames.Count - 1].Record.Sent), Is.True);
-        Assert.That(a.Frames[a.Frames.Count - 1].Text, Does.Contain("SABM"));
+        // Look for the sent frame anywhere in the list, not as the last row: the fake gateway
+        // loops every data frame straight back, so the echo (RX, also 4 bytes) can already be
+        // the last row when the test first looks. Waiting for "last row is the sent frame" then
+        // never succeeds - that failed on the GitHub Windows runner on 21 November 2026.
+        FrameRecordViewModel? sent = null;
+        Assert.That(WaitUntil(() => (sent = FindFrame(a, sent: true, length: 4)) != null), Is.True, "the sent frame is listed");
+        Assert.That(sent!.Text, Does.Contain("SABM"));
 
         a.HexText = "zz";
         a.SendHexCommand.Execute(null);
@@ -221,6 +225,20 @@ public sealed class GatewayPaneViewModelTests
         Assert.That(b.Length, Is.EqualTo(4));
         Assert.That(GatewayPaneViewModel.TryParseHex("013", out _, out string? err), Is.False);
         Assert.That(err, Does.Contain("Odd"));
+    }
+
+    /// <summary>The first frame in the pane's list with this direction and length, or null.</summary>
+    private static FrameRecordViewModel? FindFrame(GatewayPaneViewModel vm, bool sent, int length)
+    {
+        for (int i = 0; i < vm.Frames.Count; i++)
+        {
+            FrameRecordViewModel f = vm.Frames[i];
+            if (f.Record.Sent == sent && f.Record.Bytes.Length == length)
+            {
+                return f;
+            }
+        }
+        return null;
     }
 
     private static bool HasLine(GatewayPaneViewModel vm, ConsoleLineKind kind, string contains)
