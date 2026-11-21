@@ -42,6 +42,34 @@ public interface IGatewayTransport : IDisposable
     long BytesReceived { get; }
 
     /// <summary>
+    /// Bytes written and how long the writes blocked. A write returns when the driver or socket
+    /// has taken the bytes, so a far end that reads slowly shows up as long writes here.
+    /// </summary>
+    WriteMeter Writes { get; }
+
+    /// <summary>
+    /// Bytes accepted by <see cref="Write"/> and not yet handed to the driver or socket. 0 for a
+    /// transport that writes at once; the write-queue wrapper reports its backlog, so the
+    /// traffic engine can tell frames still waiting in the PC from frames lost on the way.
+    /// </summary>
+    long QueuedWriteBytes => 0;
+
+    /// <summary>
+    /// How the receive side reads: reads that returned data, the most bytes one read returned,
+    /// and the longest gap between two such reads in microseconds. A serial transport measures
+    /// them on its reader thread; others report zeros. One line for a status display.
+    /// </summary>
+    string DescribeReads() => string.Empty;
+
+    /// <summary>
+    /// Start the read statistics over (biggest read, longest gap), so a traffic run's figures
+    /// are its own and not the idle time before it. Nothing to do for a transport without them.
+    /// </summary>
+    void ResetReadStatistics()
+    {
+    }
+
+    /// <summary>
     /// True when the far end carries HDLC frames only and never parses control frames: the TCP
     /// stream of a gateway in WiFi mode (its commands go over USB) and nd100x. A probe with HELLO
     /// would go onto the line as a junk frame, so the session skips it.

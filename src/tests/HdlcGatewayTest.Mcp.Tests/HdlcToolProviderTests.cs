@@ -200,6 +200,39 @@ public sealed class HdlcToolProviderTests
     }
 
     [Test]
+    public async Task TrafficTest_PathArgument_IsCheckedAndNeedsThatPane()
+    {
+        Assert.That(await CallExpectingError("hdlc_test_start", ("path", "Sideways")), Does.Contain("LoopbackA, LoopbackB, TwoGateways, OneWayAtoB or OneWayBtoA"));
+        Assert.That(await CallExpectingError("hdlc_test_start", ("path", "OneWayBtoA")), Does.Contain("Connect both panes first"));
+        // Pane B alone: nothing connected yet, so the error names pane B, not A.
+        Assert.That(await CallExpectingError("hdlc_test_start", ("path", "LoopbackB")), Does.Contain("Connect pane B first"));
+        Assert.That(await CallExpectingError("hdlc_test_start", ("path", "TwoGateways")), Does.Contain("Connect both panes first"));
+        await Call("hdlc_open", ("pane", "B"), ("endpoint", "GOOD"));
+        string started = await Call("hdlc_test_start", ("path", "loopbackb"), ("rates", "38400"), ("seconds", 1), ("size", 32), ("window", 300), ("timeout", 1));
+        Assert.That(started, Does.Contain("loopback on B"));
+        string status = string.Empty;
+        for (int i = 0; i < 100 && !status.Contains("FINISHED"); i++)
+        {
+            await Task.Delay(100);
+            status = await Call("hdlc_test_status");
+        }
+        Assert.That(status, Does.Contain("B->B"));
+
+        // One way: both panes connected, only the B->A row appears.
+        await Call("hdlc_open", ("pane", "A"), ("endpoint", "GOOD"));
+        string oneWay = await Call("hdlc_test_start", ("path", "OneWayBtoA"), ("rates", "38400"), ("seconds", 1), ("size", 32), ("window", 300), ("timeout", 1));
+        Assert.That(oneWay, Does.Contain("B->A only"));
+        status = string.Empty;
+        for (int i = 0; i < 100 && !status.Contains("FINISHED"); i++)
+        {
+            await Task.Delay(100);
+            status = await Call("hdlc_test_status");
+        }
+        Assert.That(status, Does.Contain("B->A"));
+        Assert.That(status, Does.Not.Contain("A->B"));
+    }
+
+    [Test]
     public async Task TrafficTest_StartStatusStop()
     {
         await Call("hdlc_open", ("pane", "A"), ("endpoint", "GOOD"));

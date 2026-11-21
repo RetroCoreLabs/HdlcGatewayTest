@@ -188,8 +188,9 @@ public sealed class HdlcToolProvider
                               + "need different ports. Omit role to read the current one.",
                 InputSchema = Schema(
                     ("pane", "string", true, "A or B"),
-                    ("role", "string", false, "Console, Free, Echo, Bridge or TcpListen"),
-                    ("tcp_port", "integer", false, "For TcpListen; default 1362 for A, 1363 for B")),
+                    ("role", "string", false, "Console, Free, Echo, Bridge, TcpListen or TcpClient"),
+                    ("tcp_port", "integer", false, "For TcpListen: the port to listen on, default 1362 for A, 1363 for B. For TcpClient: the server's port"),
+                    ("tcp_host", "string", false, "For TcpClient: host name or address of the emulator that listens")),
             },
             new Tool
             {
@@ -199,7 +200,8 @@ public sealed class HdlcToolProvider
                               + "Sets BAUD on each rate unless no_baud. Read progress and the PASS/FAIL table with "
                               + "hdlc_test_status; stop early with hdlc_test_stop.",
                 InputSchema = Schema(
-                    ("two_gateways", "boolean", false, "A->B and B->A instead of loopback on A; default false"),
+                    ("path", "string", false, "LoopbackA (A wired back to itself), LoopbackB, TwoGateways (A to B and B to A at once), OneWayAtoB or OneWayBtoA (one direction only, nothing coming back); default LoopbackA"),
+                    ("two_gateways", "boolean", false, "Older form of path=TwoGateways"),
                     ("rates", "string", false, "Comma-separated bit rates; default 9600,19200,38400,115200,307200,983000"),
                     ("seconds", "integer", false, "Seconds per rate; default 120"),
                     ("size", "integer", false, "Frame length including FCS, 10..4112; default 126 (both gateways take up to 4105, their HELLO maxframe; longer frames test that they refuse them)"),
@@ -345,7 +347,8 @@ public sealed class HdlcToolProvider
         StringBuilder sb = new StringBuilder();
         sb.Append(DescribePane(pane!)).Append('\n');
         sb.Append("log level: ").Append(pane!.LogLevel).Append('\n');
-        sb.Append("frames logged: ").Append(pane.Frames.Total).Append(", console lines: ").Append(pane.Console.Total).Append('\n');
+        sb.Append("frames logged: ").Append(pane.Frames.Total).Append(", not listed during traffic tests: ")
+          .Append(pane.FramesNotListedDuringTest).Append(", console lines: ").Append(pane.Console.Total).Append('\n');
         if (pane.Link != null)
         {
             // What the channel itself counted, to tell "nothing arrived" from "arrived but not listed".
@@ -356,6 +359,17 @@ public sealed class HdlcToolProvider
               .Append(", transport receive overflow ").Append(pane.Link.Transport.ReceiveOverflow)
               .Append(", driver errors ").Append(pane.Link.Transport.DriverErrors)
               .Append(", raw bytes received ").Append(pane.Link.Transport.BytesReceived).Append('\n');
+            sb.Append("transport: ").Append(pane.Link.Transport.Writes.Describe());
+            if (pane.Link.Transport is QueuedWriteTransport queued)
+            {
+                sb.Append(", queued now ").Append(queued.QueuedBytes).Append(" bytes, writes dropped at the queue ").Append(queued.DroppedWrites);
+            }
+            string reads = pane.Link.Transport.DescribeReads();
+            if (reads.Length > 0)
+            {
+                sb.Append("; ").Append(reads);
+            }
+            sb.Append('\n');
         }
         if (pane.Identity != null)
         {
@@ -520,7 +534,7 @@ public sealed class HdlcToolProvider
         }
         if (!Enum.TryParse(roleText, true, out GatewayRole role))
         {
-            return Error("role must be Console, Free, Echo, Bridge or TcpListen.");
+            return Error("role must be Console, Free, Echo, Bridge, TcpListen or TcpClient.");
         }
         if (_sessions.TestRunning)
         {
@@ -548,12 +562,29 @@ public sealed class HdlcToolProvider
                     : Error(tcpError ?? "could not listen");
             }
 
+            case GatewayRole.TcpClient:
+            {
+                string host = Str(args, "tcp_host");
+                int port = Int(args, "tcp_port", 0);
+                if (host.Length == 0 || port < 1 || port > 65535)
+                {
+                    return Error("TcpClient needs tcp_host and tcp_port (the emulator that listens).");
+                }
+                if (pane!.Role == GatewayRole.Bridge)
+                {
+                    _sessions.SetBridge(false);
+                }
+                return pane.StartTcpClient(host, port, out string? clientError)
+                    ? Ok("Pane " + pane.Label + " forwards its frames to " + host + ":" + port + " and back.")
+                    : Error(clientError ?? "could not connect");
+            }
+
             default:
                 if (pane!.Role == GatewayRole.Bridge)
                 {
                     _sessions.SetBridge(false);
                 }
-                if (pane.Role == GatewayRole.TcpListen)
+                if (pane.Role == GatewayRole.TcpListen || pane.Role == GatewayRole.TcpClient)
                 {
                     pane.StopTcpListen();
                 }
@@ -568,9 +599,15 @@ public sealed class HdlcToolProvider
         {
             return Error("A traffic test is already running.");
         }
-        bool twoGateways = Bool(args, "two_gateways", false);
+        TrafficTestPath path = Bool(args, "two_gateways", false) ? TrafficTestPath.TwoGateways : TrafficTestPath.LoopbackA;
+        string pathText = Str(args, "path");
+        if (pathText.Length > 0 && !Enum.TryParse(pathText, true, out path))
+        {
+            return Error("path must be LoopbackA, LoopbackB, TwoGateways, OneWayAtoB or OneWayBtoA.");
+        }
         TrafficTestSettings settings = new TrafficTestSettings
         {
+            Path = path,
             SecondsPerRate = Int(args, "seconds", 120),
             FrameLength = Int(args, "size", 126),
             WindowBytes = Int(args, "window", 3000),
@@ -599,13 +636,21 @@ public sealed class HdlcToolProvider
         _recorder.Clear();
         try
         {
-            _test = _sessions.RunTrafficTestAsync(settings, _recorder, twoGateways);
+            _test = _sessions.RunTrafficTestAsync(settings, _recorder);
         }
         catch (InvalidOperationException ex)
         {
             return Error(ex.Message);
         }
-        return Ok("Traffic test started: " + (twoGateways ? "A->B and B->A" : "loopback on A") + ", rates "
+        string pathName = path switch
+        {
+            TrafficTestPath.TwoGateways => "A->B and B->A",
+            TrafficTestPath.OneWayAtoB => "A->B only",
+            TrafficTestPath.OneWayBtoA => "B->A only",
+            TrafficTestPath.LoopbackB => "loopback on B",
+            _ => "loopback on A",
+        };
+        return Ok("Traffic test started: " + pathName + ", rates "
                   + string.Join(",", settings.Rates) + ", " + settings.SecondsPerRate + " s per rate, frames of "
                   + settings.FrameLength + " bytes. Poll hdlc_test_status.");
     }

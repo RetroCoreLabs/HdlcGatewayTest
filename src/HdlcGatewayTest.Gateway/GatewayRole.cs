@@ -25,6 +25,13 @@ public enum GatewayRole
 
     /// <summary>Also listen on a TCP port; frames from the TCP peer go to the serial line and back.</summary>
     TcpListen,
+
+    /// <summary>
+    /// Also connect OUT to a TCP server (an nd100 emulator that listens): frames from the line go
+    /// to it and its frames go to the line (Ronny, 2026-11-09: pane A is the Pico, forwarded to
+    /// the emulator at 192.168.1.180).
+    /// </summary>
+    TcpClient,
 }
 
 /// <summary>Where a frame record came from or went to.</summary>

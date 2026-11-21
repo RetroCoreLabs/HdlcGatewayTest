@@ -76,6 +76,9 @@ public sealed class TcpClientTransport : IGatewayTransport
     public long BytesReceived => Interlocked.Read(ref _bytesReceived);
 
     /// <inheritdoc/>
+    public WriteMeter Writes { get; } = new WriteMeter();
+
+    /// <inheritdoc/>
     public event Action<Exception>? Faulted;
 
     /// <summary>
@@ -157,7 +160,9 @@ public sealed class TcpClientTransport : IGatewayTransport
         {
             throw new IOException(Name + " is not connected.");
         }
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
         stream.Write(data);
+        Writes.Record(start, data.Length);
     }
 
     /// <inheritdoc/>

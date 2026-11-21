@@ -135,13 +135,73 @@ public sealed class PendingFrames
     /// <returns>How many were removed; the caller counts them as lost.</returns>
     public int ExpireSentBefore(long deadlineTicks)
     {
+        return ExpireSentBefore(deadlineTicks, 0);
+    }
+
+    /// <summary>
+    /// Give up on frames sent before <paramref name="deadlineTicks"/>, except the newest ones
+    /// whose bytes are still waiting in the transport's write queue: those have not been on
+    /// the line yet, so their clock has not started.
+    /// </summary>
+    /// <param name="deadlineTicks">Frames sent at or before this time are removed.</param>
+    /// <param name="queuedBytes">Bytes the transport still holds unwritten.</param>
+    /// <returns>How many were removed; the caller counts them as lost.</returns>
+    public int ExpireSentBefore(long deadlineTicks, long queuedBytes)
+    {
+        int keep = CountNewestWithin(queuedBytes);
         int expired = 0;
-        while (_count > 0 && _sentTicks[_head] <= deadlineTicks)
+        while (_count > keep && _sentTicks[_head] <= deadlineTicks)
         {
             RemoveHead();
             expired++;
         }
         return expired;
+    }
+
+    /// <summary>
+    /// How many of the newest frames fit, whole, in <paramref name="bytes"/>: the frames a
+    /// write queue of that size still holds.
+    /// </summary>
+    /// <param name="bytes">Bytes still waiting in the transport's write queue.</param>
+    /// <returns>The count, 0 when nothing is queued.</returns>
+    public int CountNewestWithin(long bytes)
+    {
+        int n = 0;
+        while (n < _count)
+        {
+            int tail = (_head + _count - 1 - n) % _sequence.Length;
+            if (_bytes[tail] > bytes)
+            {
+                break;
+            }
+            bytes -= _bytes[tail];
+            n++;
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// Take back the newest frames whose encoded bytes add up to at most <paramref name="bytes"/>:
+    /// the tail of the queue that the transport never wrote. They are neither sent nor lost.
+    /// </summary>
+    /// <param name="bytes">Bytes still waiting in the transport's write queue.</param>
+    /// <returns>How many frames were taken back.</returns>
+    public int RemoveNewestWithin(long bytes)
+    {
+        int removed = 0;
+        while (_count > 0)
+        {
+            int tail = (_head + _count - 1) % _sequence.Length;
+            if (_bytes[tail] > bytes)
+            {
+                break;
+            }
+            bytes -= _bytes[tail];
+            _bytesInFlight -= _bytes[tail];
+            _count--;
+            removed++;
+        }
+        return removed;
     }
 
     /// <summary>Forget everything in flight and allow the numbering to start over.</summary>

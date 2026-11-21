@@ -51,6 +51,57 @@ public sealed class McpEndToEndTests
         Assert.That(bad.IsError, Is.True);
     }
 
+    [Test]
+    public async Task Server_CountsConnectedClients()
+    {
+        int port = FreePort();
+        using GatewaySessionSet set = new GatewaySessionSet();
+        set.Start();
+        McpTrafficLog log = new McpTrafficLog();
+        HdlcToolProvider tools = new HdlcToolProvider(set, new FakeTransportFactory(), log, "e2e");
+        await using McpServerHost server = await McpServerHost.StartAsync(tools, port);
+        Assert.That(server.ActiveConnections, Is.EqualTo(0));
+
+        HttpClientTransport transport = new HttpClientTransport(new HttpClientTransportOptions
+        {
+            Endpoint = new Uri(server.Url),
+        });
+        McpClient client = await McpClient.CreateAsync(transport);
+        Assert.That(server.ActiveConnections, Is.GreaterThanOrEqualTo(1), "the connection is open after initialize");
+        await client.ListToolsAsync();
+        Assert.That(server.ActiveConnections, Is.GreaterThanOrEqualTo(1), "still open across a call");
+
+        await client.DisposeAsync();
+        await transport.DisposeAsync();    // disposes the HttpClient it owns: its connection closes
+        Assert.That(await WaitForAsync(() => server.ActiveConnections == 0), Is.True, "the connection closed with the client");
+
+        List<McpTrafficEntry> entries = log.Snapshot();
+        bool opened = false;
+        bool closed = false;
+        bool listed = false;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            opened |= entries[i].Tool == McpTrafficLog.ServerTool && entries[i].Text.Contains("connected from");
+            closed |= entries[i].Tool == McpTrafficLog.ServerTool && entries[i].Text.Contains("disconnected");
+            listed |= entries[i].Tool == "tools/list";
+        }
+        Assert.That(opened && closed && listed, Is.True, "the log names the connect, the tools/list call and the disconnect");
+    }
+
+    private static async Task<bool> WaitForAsync(Func<bool> condition, int milliseconds = 5000)
+    {
+        long deadline = Environment.TickCount64 + milliseconds;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (condition())
+            {
+                return true;
+            }
+            await Task.Delay(20);
+        }
+        return condition();
+    }
+
     private static int FreePort()
     {
         TcpListener l = new TcpListener(IPAddress.Loopback, 0);

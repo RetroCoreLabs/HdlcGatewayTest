@@ -21,6 +21,7 @@ public sealed class GatewaySession : IDisposable
     private readonly byte[] _tcpRx = new byte[8192];
     private GatewayLink? _link;
     private TcpListenerTransport? _tcp;
+    private TcpClientTransport? _tcpClient;
     private GatewayChannel? _tcpChannel;
     private FrameSource _sendSource = FrameSource.Console;
     private FrameSource _tcpSendSource = FrameSource.Serial;
@@ -103,7 +104,7 @@ public sealed class GatewaySession : IDisposable
     public int TcpPort => _tcp?.Port ?? 0;
 
     /// <summary>The TCP peer's address while one is connected.</summary>
-    public string? TcpPeer => _tcp?.PeerName;
+    public string? TcpPeer => _tcp?.PeerName ?? _tcpClient?.Name;
 
     /// <summary>True while the traffic test owns this session's link; the pump skips it then.</summary>
     public bool InTrafficTest
@@ -111,6 +112,8 @@ public sealed class GatewaySession : IDisposable
         get => _inTrafficTest;
         internal set => _inTrafficTest = value;
     }
+
+    private long _framesNotListedDuringTest;
 
     /// <summary>
     /// Open a transport, probe the firmware and start listening. Blocks for the probe (up to
@@ -226,12 +229,13 @@ public sealed class GatewaySession : IDisposable
         lock (_pumpLock)
         {
             int n = _link?.Pump() ?? 0;
-            if (_tcp != null && _tcpChannel != null)
+            IGatewayTransport? tcpTransport = _tcp ?? (IGatewayTransport?)_tcpClient;
+            if (tcpTransport != null && _tcpChannel != null)
             {
                 // Bounded like GatewayLink.Pump, for the same reason.
                 for (int rounds = 0; rounds < 8; rounds++)
                 {
-                    int m = _tcp.Read(_tcpRx);
+                    int m = tcpTransport.Read(_tcpRx);
                     if (m <= 0)
                     {
                         break;
@@ -416,15 +420,71 @@ public sealed class GatewaySession : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Connect out to a TCP server (an nd100 emulator that listens) and switch to the TcpClient
+    /// role: frames from this pane's line go to the server, its frames go to the line. The
+    /// connection is not re-dialled if it drops; call this again.
+    /// </summary>
+    /// <param name="host">Host name or address.</param>
+    /// <param name="port">The server's port.</param>
+    /// <param name="error">Why it failed, or null.</param>
+    /// <returns>True when connected.</returns>
+    public bool StartTcpClient(string host, int port, out string? error)
+    {
+        error = null;
+        StopTcpListen();
+        TcpClientTransport tcp;
+        try
+        {
+            tcp = new TcpClientTransport(host, port);
+            tcp.Open();
+        }
+        catch (Exception ex) when (ex is IOException || ex is ArgumentException)
+        {
+            error = ex.Message;
+            Console.Add(ConsoleLineKind.Notice, error, FrameSource.Console);
+            return false;
+        }
+        GatewayChannel channel = new GatewayChannel(tcp.Write);
+        channel.FrameObserved = OnTcpFrameObserved;
+        channel.DataFrameReceived = OnTcpDataFrame;
+        channel.BadFrameReceived = f => Console.Add(ConsoleLineKind.Notice,
+            "TCP server sent a frame with a bad FCS (" + f.Length + " bytes), dropped.", FrameSource.Tcp);
+        tcp.Faulted += OnTcpClientFaulted;
+        lock (_pumpLock)
+        {
+            _tcpClient = tcp;
+            _tcpChannel = channel;
+        }
+        Console.Add(ConsoleLineKind.Notice, "Connected to TCP server " + tcp.Name + "; frames are forwarded both ways.",
+                    FrameSource.Console);
+        Role = GatewayRole.TcpClient;
+        StateChanged?.Invoke(this);
+        return true;
+    }
+
     /// <summary>Stop the TCP listener; the role falls back to Console if it was TcpListen.</summary>
     public void StopTcpListen()
     {
         TcpListenerTransport? tcp;
+        TcpClientTransport? client;
         lock (_pumpLock)
         {
             tcp = _tcp;
+            client = _tcpClient;
             _tcp = null;
+            _tcpClient = null;
             _tcpChannel = null;
+        }
+        if (client != null)
+        {
+            client.Faulted -= OnTcpClientFaulted;
+            client.Dispose();
+            Console.Add(ConsoleLineKind.Notice, "Closed the TCP connection to " + client.Name + ".", FrameSource.Console);
+            if (Role == GatewayRole.TcpClient)
+            {
+                Role = GatewayRole.Console;
+            }
         }
         if (tcp != null)
         {
@@ -496,8 +556,21 @@ public sealed class GatewaySession : IDisposable
         {
             source = _linkSource;
         }
+        // While the traffic test owns the link its data frames are not listed: at 983000 bit/s
+        // with 10-byte frames that was 350000 records a minute, and the garbage collector paused
+        // the process for 8.5 s of the 60 (1627 gen0 and 78 gen2 collections, measured
+        // 2026-11-09 03:59). The engine counts and checks every one of them; control frames
+        // (address 0xFE) are still listed.
+        if (_inTrafficTest && frame.Length > 0 && frame[0] != ControlFrame.Address)
+        {
+            Interlocked.Increment(ref _framesNotListedDuringTest);
+            return;
+        }
         Frames.Add(sent, source, frame);
     }
+
+    /// <summary>Data frames seen while a traffic test ran, counted instead of listed.</summary>
+    public long FramesNotListedDuringTest => Interlocked.Read(ref _framesNotListedDuringTest);
 
     private void OnTcpFrameObserved(bool sent, ReadOnlySpan<byte> frame)
     {
@@ -556,6 +629,13 @@ public sealed class GatewaySession : IDisposable
     private void OnTcpPeerChanged(string? peer)
     {
         Console.Add(ConsoleLineKind.Notice, peer == null ? "TCP peer disconnected." : "TCP peer connected: " + peer,
+                    FrameSource.Tcp);
+        StateChanged?.Invoke(this);
+    }
+
+    private void OnTcpClientFaulted(Exception ex)
+    {
+        Console.Add(ConsoleLineKind.Notice, "TCP connection failed: " + ex.Message + " (apply the role again to reconnect).",
                     FrameSource.Tcp);
         StateChanged?.Invoke(this);
     }

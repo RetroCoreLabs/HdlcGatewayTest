@@ -4,7 +4,7 @@ The window: two panes, one HDLC gateway each, built on the same libraries as `hd
 
 ## What a pane does
 
-- **Connect** to a COM port, or type `host:port` (a gateway in WiFi mode, `hdlcgw.local:1362`)
+- **Setup...** opens the pane's own window: serial port, or TCP client to `host:port` (a gateway in WiFi mode, `hdlcgw.local:1362`, or an emulator that listens), legacy console, line speed, role, TCP server port, firmware log level. OK applies it all; the line under the header shows the result. **Connect** to a COM port, or to `host:port`
   into the endpoint box. The tool sends HELLO; a firmware with control frames (HDLCGW 0.2.0
   and later) answers with its name and version and the badge says `CONTROL FRAMES`. If nothing
   answers within half a second the tool opens the legacy ESC ESC ESC text console, leaves it
@@ -35,15 +35,22 @@ The window: two panes, one HDLC gateway each, built on the same libraries as `hd
 
 ## Traffic test
 
-The panel under the panes runs the same engine as `hdlc-loopback`: loopback on A, or A to B
+While a traffic test runs, its data frames are counted by the engine but not listed in the
+panes (listing 350000 frames a minute made the garbage collector pause the program for 8 s of
+every 60); control frames are still listed. The Traffic test tab runs the same engine as `hdlc-loopback`: gateway A or B alone with its line looped back, or A to B
 and B to A, at a list of rates, with the frame size, window, seconds per rate and timeout the
 command-line tool takes. The status line and the PASS/FAIL table are the same text.
 
 ## MCP
 
-Tick **MCP server** in the status bar (remembered, default off) or start with `--mcp [port]` for
-one run. The repository README has the client set-up for Claude Code, Cursor and VS Code and the
-list of tools. The **MCP log** button shows every call and result.
+Below the panes a tabbed area holds **Version** (what each gateway said in its HELLO reply:
+firmware, version, build date, chip, board, longest frame, capabilities; the same in one line
+each in the bottom bar), **Traffic test** (the test settings, status and report),
+**MCP** (server on/off, port, status, how many clients are connected, and the `claude mcp add`
+line to copy) and **MCP log** (every call, its result, and every client connecting or disconnecting).
+Tick **MCP server** (remembered, default off) or start with `--mcp [port]` for one run. The
+client count is the number of connections open to the MCP port: a client keeps its connection
+between calls and closes it after about two minutes of silence.
 
 ## Settings
 

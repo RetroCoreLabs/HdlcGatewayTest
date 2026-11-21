@@ -131,6 +131,7 @@ public sealed class TestRun : ITrafficTestObserver
               .Append(" ok ").Append(s.FramesOk)
               .Append(" bad ").Append(s.FramesBadFcs + s.FramesCorrupt)
               .Append(" lost ").Append(s.FramesLost)
+              .Append(" unsent ").Append(s.FramesUnsent)
               .Append(' ').Append(kbit.ToString("F1", CultureInfo.InvariantCulture)).Append(" kbit/s");
         }
         if (done)
@@ -175,8 +176,8 @@ public sealed class TestRun : ITrafficTestObserver
     private void PrintReport()
     {
         _out.WriteLine();
-        _out.WriteLine("   Rate    Dir   Sent      OK   BadFCS  Corrupt   Lost   Late  Dropped   kbit/s   RTT ms (mean/max)  Result");
-        _out.WriteLine("-------  -----  ------  ------  ------  -------  -----  -----  -------  -------  -----------------  ------");
+        _out.WriteLine("   Rate    Dir   Sent      OK   BadFCS  Corrupt   Lost   Late  Unsent  Dropped   kbit/s   RTT ms (mean/max)  Result");
+        _out.WriteLine("-------  -----  ------  ------  ------  -------  -----  -----  ------  -------  -------  -----------------  ------");
         for (int i = 0; i < _results.Count; i++)
         {
             RateResult r = _results[i];
@@ -184,9 +185,9 @@ public sealed class TestRun : ITrafficTestObserver
             {
                 TrafficStatistics s = r.Statistics[d];
                 string line = string.Format(CultureInfo.InvariantCulture,
-                    "{0,7}  {1,-5}  {2,6}  {3,6}  {4,6}  {5,7}  {6,5}  {7,5}  {8,7}  {9,7:F1}  {10,8:F1}/{11,-8:F1}  {12}",
+                    "{0,7}  {1,-5}  {2,6}  {3,6}  {4,6}  {5,7}  {6,5}  {7,5}  {8,6}  {9,7}  {10,7:F1}  {11,8:F1}/{12,-8:F1}  {13}",
                     r.Rate, r.DirectionNames[d], s.FramesSent, s.FramesOk, s.FramesBadFcs,
-                    s.FramesCorrupt, s.FramesLost, s.FramesLate, s.DecoderDropped, s.KilobitPerSecond,
+                    s.FramesCorrupt, s.FramesLost, s.FramesLate, s.FramesUnsent, s.DecoderDropped, s.KilobitPerSecond,
                     s.RoundTripMeanMs, s.RoundTripMaxMs,
                     r.Error ?? (s.Passed ? "PASS" : "FAIL"));
                 _out.WriteLine(line);

@@ -126,6 +126,7 @@ public sealed class TrafficTestRecorder : ITrafficTestObserver
               .Append(" ok ").Append(s.FramesOk)
               .Append(" bad ").Append(s.FramesBadFcs + s.FramesCorrupt)
               .Append(" lost ").Append(s.FramesLost)
+              .Append(" unsent ").Append(s.FramesUnsent)
               .Append(' ').Append(kbit.ToString("F1", CultureInfo.InvariantCulture)).Append(" kbit/s");
         }
         if (done)
@@ -143,8 +144,8 @@ public sealed class TrafficTestRecorder : ITrafficTestObserver
     public static string FormatReport(IReadOnlyList<RateResult> results)
     {
         StringBuilder sb = new StringBuilder();
-        sb.Append("   Rate    Dir   Sent      OK   BadFCS  Corrupt   Lost   Late  Dropped   kbit/s   RTT ms (mean/max)  Result\r\n");
-        sb.Append("-------  -----  ------  ------  ------  -------  -----  -----  -------  -------  -----------------  ------\r\n");
+        sb.Append("   Rate    Dir   Sent      OK   BadFCS  Corrupt   Lost   Late  Unsent  Dropped   kbit/s   RTT ms (mean/max)  Result\r\n");
+        sb.Append("-------  -----  ------  ------  ------  -------  -----  -----  ------  -------  -------  -----------------  ------\r\n");
         for (int i = 0; i < results.Count; i++)
         {
             RateResult r = results[i];
@@ -152,9 +153,9 @@ public sealed class TrafficTestRecorder : ITrafficTestObserver
             {
                 TrafficStatistics s = r.Statistics[d];
                 sb.Append(string.Format(CultureInfo.InvariantCulture,
-                    "{0,7}  {1,-5}  {2,6}  {3,6}  {4,6}  {5,7}  {6,5}  {7,5}  {8,7}  {9,7:F1}  {10,8:F1}/{11,-8:F1}  {12}",
+                    "{0,7}  {1,-5}  {2,6}  {3,6}  {4,6}  {5,7}  {6,5}  {7,5}  {8,6}  {9,7}  {10,7:F1}  {11,8:F1}/{12,-8:F1}  {13}",
                     r.Rate, r.DirectionNames[d], s.FramesSent, s.FramesOk, s.FramesBadFcs,
-                    s.FramesCorrupt, s.FramesLost, s.FramesLate, s.DecoderDropped, s.KilobitPerSecond,
+                    s.FramesCorrupt, s.FramesLost, s.FramesLate, s.FramesUnsent, s.DecoderDropped, s.KilobitPerSecond,
                     s.RoundTripMeanMs, s.RoundTripMaxMs,
                     r.Error ?? (s.Passed ? "PASS" : "FAIL"))).Append("\r\n");
             }

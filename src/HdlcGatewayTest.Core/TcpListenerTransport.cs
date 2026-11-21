@@ -78,6 +78,9 @@ public sealed class TcpListenerTransport : IGatewayTransport
     public long BytesReceived => Interlocked.Read(ref _bytesReceived);
 
     /// <inheritdoc/>
+    public WriteMeter Writes { get; } = new WriteMeter();
+
+    /// <inheritdoc/>
     public event Action<Exception>? Faulted;
 
     /// <summary>A peer connected (name) or went away (null). Raised on the accept or reader thread.</summary>
@@ -120,7 +123,9 @@ public sealed class TcpListenerTransport : IGatewayTransport
         }
         try
         {
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
             stream.Write(data);
+            Writes.Record(start, data.Length);
         }
         catch (IOException)
         {

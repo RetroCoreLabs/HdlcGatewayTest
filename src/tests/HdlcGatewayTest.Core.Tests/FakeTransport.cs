@@ -18,7 +18,7 @@ public sealed class FakeTransport : IGatewayTransport
     public Action<byte[]>? OnWrite { get; set; }
 
     /// <summary>Everything written so far, for assertions.</summary>
-    public List<byte[]> Writes { get; } = new List<byte[]>();
+    public List<byte[]> WrittenBlocks { get; } = new List<byte[]>();
 
     /// <inheritdoc/>
     public string Name { get; set; } = "FAKE";
@@ -37,6 +37,9 @@ public sealed class FakeTransport : IGatewayTransport
 
     /// <inheritdoc/>
     public long BytesReceived => _bytesReceived;
+
+    /// <inheritdoc/>
+    public WriteMeter Writes { get; } = new WriteMeter();
 
     private long _bytesReceived;
 
@@ -67,12 +70,14 @@ public sealed class FakeTransport : IGatewayTransport
     /// <inheritdoc/>
     public void Write(ReadOnlySpan<byte> data)
     {
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
         byte[] copy = data.ToArray();
         lock (_lock)
         {
-            Writes.Add(copy);
+            WrittenBlocks.Add(copy);
         }
         OnWrite?.Invoke(copy);
+        Writes.Record(start, copy.Length);
     }
 
     /// <summary>Queue bytes the "gateway" sends to the host.</summary>

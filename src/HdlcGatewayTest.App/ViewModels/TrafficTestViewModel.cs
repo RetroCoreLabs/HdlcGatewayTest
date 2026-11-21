@@ -27,7 +27,7 @@ public sealed class TrafficTestViewModel : ObservableObject
     private int _window;
     private int _timeout;
     private bool _noBaud;
-    private bool _twoGateways;
+    private string _selectedPath = PathNames[0];
     private string _statusLine = string.Empty;
     private string _report = string.Empty;
     private string _verdict = string.Empty;
@@ -72,8 +72,32 @@ public sealed class TrafficTestViewModel : ObservableObject
     /// <summary>Do not set BAUD.</summary>
     public bool NoBaud { get => _noBaud; set => SetProperty(ref _noBaud, value); }
 
-    /// <summary>A->B and B->A instead of loopback on A.</summary>
-    public bool TwoGateways { get => _twoGateways; set => SetProperty(ref _twoGateways, value); }
+    /// <summary>The test paths in plain words, in <see cref="TrafficTestPath"/> order.</summary>
+    public static readonly string[] PathNames =
+    {
+        "Gateway A alone, line looped back (its TD wired to its own RD)",
+        "Gateway B alone, line looped back (its TD wired to its own RD)",
+        "A and B wired to each other: A sends to B and B sends to A",
+        "A and B wired to each other: only A sends, B only receives",
+        "A and B wired to each other: only B sends, A only receives",
+    };
+
+    /// <summary>The path names for the picker.</summary>
+    public string[] Paths => PathNames;
+
+    /// <summary>The chosen path, one of <see cref="PathNames"/>.</summary>
+    public string SelectedPath { get => _selectedPath; set => SetProperty(ref _selectedPath, value); }
+
+    /// <summary>The chosen path as the engine's enum.</summary>
+    public TrafficTestPath Path
+    {
+        get
+        {
+            int i = Array.IndexOf(PathNames, _selectedPath);
+            return i < 0 ? TrafficTestPath.LoopbackA : (TrafficTestPath)i;
+        }
+        set => SelectedPath = PathNames[(int)value];
+    }
 
     /// <summary>Live status line.</summary>
     public string StatusLine { get => _statusLine; private set => SetProperty(ref _statusLine, value); }
@@ -148,6 +172,7 @@ public sealed class TrafficTestViewModel : ObservableObject
             TimeoutSeconds = Math.Max(1, Timeout),
             NoBaud = NoBaud,
             VerboseFrames = 3,
+            Path = Path,
         };
         SaveTo(_settings);
         _settings.Save();
@@ -157,7 +182,7 @@ public sealed class TrafficTestViewModel : ObservableObject
         Task<bool> run;
         try
         {
-            run = _set.RunTrafficTestAsync(settings, _recorder, TwoGateways);
+            run = _set.RunTrafficTestAsync(settings, _recorder);
         }
         catch (InvalidOperationException ex)
         {

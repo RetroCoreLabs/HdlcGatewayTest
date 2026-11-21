@@ -35,8 +35,8 @@ public sealed class TextConsoleTests
 
         Assert.That(console.Enter(out string transcript), Is.True);
         Assert.That(transcript, Does.EndWith("# "));
-        Assert.That(t.Writes.Count, Is.EqualTo(answersOn));
-        Assert.That(t.Writes[answersOn - 1], Is.EqualTo(lastProbe));
+        Assert.That(t.WrittenBlocks.Count, Is.EqualTo(answersOn));
+        Assert.That(t.WrittenBlocks[answersOn - 1], Is.EqualTo(lastProbe));
     }
 
     [Test]
@@ -45,7 +45,7 @@ public sealed class TextConsoleTests
         FakeTransport t = new FakeTransport();
         TextConsole console = new TextConsole(t);
         Assert.That(console.Enter(out _), Is.False);
-        Assert.That(t.Writes.Count, Is.EqualTo(3));
+        Assert.That(t.WrittenBlocks.Count, Is.EqualTo(3));
     }
 
     [Test]
@@ -56,7 +56,7 @@ public sealed class TextConsoleTests
         TextConsole console = new TextConsole(t);
 
         Assert.That(console.Command("BAUD 9600", out string transcript), Is.True);
-        Assert.That(t.Writes[0], Is.EqualTo(System.Text.Encoding.ASCII.GetBytes("BAUD 9600\r")));
+        Assert.That(t.WrittenBlocks[0], Is.EqualTo(System.Text.Encoding.ASCII.GetBytes("BAUD 9600\r")));
         Assert.That(transcript, Does.Contain("set to 9600"));
     }
 }

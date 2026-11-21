@@ -45,6 +45,7 @@ public static class FrameRouter
                 return from == FrameSource.Serial ? FrameDestinations.PeerSerial : FrameDestinations.None;
 
             case GatewayRole.TcpListen:
+            case GatewayRole.TcpClient:
                 if (from == FrameSource.Serial)
                 {
                     return FrameDestinations.OwnTcp;

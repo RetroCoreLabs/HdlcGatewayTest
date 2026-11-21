@@ -123,31 +123,40 @@ public sealed class GatewaySessionSet : IDisposable
     }
 
     /// <summary>
-    /// Run the traffic test on a worker thread. A->A when <paramref name="useB"/> is false, else
-    /// A->B and B->A. The sessions' links are borrowed for the duration: their panes keep
-    /// listing frames (the observer stays attached) but commands should not be sent meanwhile.
+    /// Run the traffic test on a worker thread over the path in <see cref="TrafficTestSettings.Path"/>:
+    /// A->A, B->B, or A->B and B->A. The sessions' links are borrowed for the duration: their
+    /// panes keep listing frames (the observer stays attached) but commands should not be sent
+    /// meanwhile.
     /// </summary>
-    /// <param name="settings">What to run.</param>
+    /// <param name="settings">What to run, the path included.</param>
     /// <param name="observer">Who hears progress; called on the worker thread.</param>
-    /// <param name="useB">Two-gateway test.</param>
     /// <returns>A task that completes with the pass verdict when the test ends.</returns>
-    public Task<bool> RunTrafficTestAsync(TrafficTestSettings settings, ITrafficTestObserver observer, bool useB)
+    public Task<bool> RunTrafficTestAsync(TrafficTestSettings settings, ITrafficTestObserver observer)
     {
         if (_testCancel != null)
         {
             throw new InvalidOperationException("A traffic test is already running.");
         }
-        GatewayLink? a = A.Link;
+        TrafficTestPath path = settings.Path;
+        bool useA = path != TrafficTestPath.LoopbackB;
+        bool useB = path != TrafficTestPath.LoopbackA;
+        GatewayLink? a = useA ? A.Link : null;
         GatewayLink? b = useB ? B.Link : null;
-        if (a == null || (useB && b == null))
+        if ((useA && a == null) || (useB && b == null))
         {
-            throw new InvalidOperationException("Connect the pane(s) first.");
+            throw new InvalidOperationException(useA && useB
+                ? "Connect both panes first."
+                : "Connect pane " + (useA ? "A" : "B") + " first.");
         }
+        // The engine takes "a" as the sender for loopback, so pane B alone is handed over as "a".
+        GatewayLink first = (a ?? b)!;
+        GatewayLink? second = useA && useB ? b : null;    // two links: both ways or one way, per settings.Path
+        string loopbackName = useA ? "A->A" : "B->B";
         CancellationTokenSource cts = new CancellationTokenSource();
         _testCancel = cts;
         TrafficTest test = new TrafficTest(settings, observer);
         LastTest = test;
-        A.InTrafficTest = true;
+        A.InTrafficTest = useA;
         B.InTrafficTest = useB;
         // The flags stop the pump thread's NEXT pass; wait for a pass already inside a link to end
         // before the engine pumps the same links from its own thread.
@@ -157,7 +166,7 @@ public sealed class GatewaySessionSet : IDisposable
         {
             try
             {
-                return test.Run(a, b, cts.Token);
+                return test.Run(first, second, cts.Token, loopbackName);
             }
             finally
             {

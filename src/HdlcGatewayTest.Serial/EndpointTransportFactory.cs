@@ -10,7 +10,8 @@ namespace HdlcGatewayTest.Serial;
 /// <summary>
 /// The hosts' <see cref="IGatewayTransportFactory"/>. An endpoint with a colon is
 /// <c>host:port</c>: a gateway in WiFi mode (<c>hdlcgw.local:1362</c>) or nd100x as a server,
-/// reached with <see cref="TcpClientTransport"/>. Anything else is a COM port name.
+/// reached with <see cref="TcpClientTransport"/>. Anything else is a COM port name, opened as a
+/// <see cref="SerialTransport"/> behind a <see cref="QueuedWriteTransport"/>.
 /// </summary>
 public sealed class EndpointTransportFactory : IGatewayTransportFactory
 {
@@ -36,6 +37,8 @@ public sealed class EndpointTransportFactory : IGatewayTransportFactory
             }
             return new TcpClientTransport(host, port);
         }
-        return new SerialTransport(e);
+        // Serial writes block while the far end reads slowly; the queue keeps the one pump
+        // thread reading both ports meanwhile (see QueuedWriteTransport for the bench case).
+        return new QueuedWriteTransport(new SerialTransport(e));
     }
 }

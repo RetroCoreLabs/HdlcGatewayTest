@@ -81,11 +81,11 @@ public sealed class GatewayLinkTests
         link.Open();
         Assert.That(link.Probe(50, out _, tryConsole: true), Is.EqualTo(GatewayCommandPath.TextConsole));
 
-        Assert.That(t.Writes.Count, Is.GreaterThanOrEqualTo(3));
-        Assert.That(t.Writes[0], Is.EqualTo(new byte[] { 0x1B, 0x1B, 0x1B }));
-        for (int i = 0; i < t.Writes.Count; i++)
+        Assert.That(t.WrittenBlocks.Count, Is.GreaterThanOrEqualTo(3));
+        Assert.That(t.WrittenBlocks[0], Is.EqualTo(new byte[] { 0x1B, 0x1B, 0x1B }));
+        for (int i = 0; i < t.WrittenBlocks.Count; i++)
         {
-            Assert.That(t.Writes[i][0], Is.Not.EqualTo(ByteFrame.Flag), "write " + i + " must not be a frame");
+            Assert.That(t.WrittenBlocks[i][0], Is.Not.EqualTo(ByteFrame.Flag), "write " + i + " must not be a frame");
         }
     }
 
@@ -99,13 +99,13 @@ public sealed class GatewayLinkTests
         Assert.That(link.Probe(50, out _, tryConsole: true), Is.EqualTo(GatewayCommandPath.ControlFrames));
         Assert.That(gw.Commands, Is.EqualTo(new[] { "LOG", "EXIT" }));
         bool exitSeen = false;
-        for (int i = 0; i < t.Writes.Count; i++)
+        for (int i = 0; i < t.WrittenBlocks.Count; i++)
         {
-            if (t.Writes[i][0] == ByteFrame.Flag && t.Writes[i].Length > 4)
+            if (t.WrittenBlocks[i][0] == ByteFrame.Flag && t.WrittenBlocks[i].Length > 4)
             {
                 Assert.That(exitSeen, Is.True, "the HELLO frame must come after EXIT");
             }
-            if (System.Text.Encoding.ASCII.GetString(t.Writes[i]).StartsWith("EXIT", StringComparison.Ordinal))
+            if (System.Text.Encoding.ASCII.GetString(t.WrittenBlocks[i]).StartsWith("EXIT", StringComparison.Ordinal))
             {
                 exitSeen = true;
             }
@@ -121,9 +121,9 @@ public sealed class GatewayLinkTests
         using GatewayLink link = new GatewayLink(t);
         link.Open();
         Assert.That(link.Probe(50, out _), Is.EqualTo(GatewayCommandPath.None));
-        for (int i = 0; i < t.Writes.Count; i++)
+        for (int i = 0; i < t.WrittenBlocks.Count; i++)
         {
-            Assert.That(t.Writes[i][0], Is.EqualTo(ByteFrame.Flag), "only frames were written");
+            Assert.That(t.WrittenBlocks[i][0], Is.EqualTo(ByteFrame.Flag), "only frames were written");
         }
     }
 

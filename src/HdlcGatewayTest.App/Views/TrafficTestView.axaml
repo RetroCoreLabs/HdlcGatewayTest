@@ -3,36 +3,59 @@
              xmlns:vm="using:HdlcGatewayTest.App.ViewModels"
              x:Class="HdlcGatewayTest.App.Views.TrafficTestView"
              x:DataType="vm:TrafficTestViewModel">
-    <Expander Header="Traffic test" IsExpanded="True" Margin="6,0">
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto">
-            <WrapPanel Grid.Row="0" Margin="0,4">
-                <RadioButton Content="Loopback on A" IsChecked="{Binding !TwoGateways}" Margin="0,0,12,0" />
-                <RadioButton Content="A -&gt; B and B -&gt; A" IsChecked="{Binding TwoGateways}" Margin="0,0,16,0" />
-                <TextBlock Text="Rates" VerticalAlignment="Center" Margin="0,0,4,0" />
-                <TextBox Width="260" Text="{Binding Rates}" Margin="0,0,12,0" />
-                <TextBlock Text="Size" VerticalAlignment="Center" Margin="0,0,4,0" />
-                <NumericUpDown Value="{Binding Size}" Minimum="10" Maximum="1024" Increment="1" FormatString="0" Width="90" ShowButtonSpinner="False" Margin="0,0,12,0" />
-                <TextBlock Text="Window" VerticalAlignment="Center" Margin="0,0,4,0" />
-                <NumericUpDown Value="{Binding Window}" Minimum="10" Maximum="1000000" Increment="100" FormatString="0" Width="100" ShowButtonSpinner="False" Margin="0,0,12,0" />
-                <TextBlock Text="Seconds/rate" VerticalAlignment="Center" Margin="0,0,4,0" />
-                <NumericUpDown Value="{Binding Seconds}" Minimum="1" Maximum="86400" Increment="10" FormatString="0" Width="90" ShowButtonSpinner="False" Margin="0,0,12,0" />
-                <TextBlock Text="Timeout s" VerticalAlignment="Center" Margin="0,0,4,0" />
-                <NumericUpDown Value="{Binding Timeout}" Minimum="1" Maximum="3600" Increment="1" FormatString="0" Width="80" ShowButtonSpinner="False" Margin="0,0,12,0" />
-                <CheckBox Content="no BAUD" IsChecked="{Binding NoBaud}" Margin="0,0,12,0" ToolTip.Tip="Keep the gateways' clocks as they are" />
-                <Button Content="Start" Command="{Binding StartCommand}" Margin="0,0,4,0" />
-                <Button Content="Stop" Command="{Binding StopCommand}" Margin="0,0,12,0" />
-                <TextBlock Text="{Binding Verdict}" FontWeight="Bold" VerticalAlignment="Center" />
+    <ScrollViewer Margin="6,0" VerticalScrollBarVisibility="Auto">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+            <TextBlock Grid.Row="0" Margin="0,4,0,2" TextWrapping="Wrap" Opacity="0.85"
+                       Text="Sends numbered test frames through the gateway(s), checks that every frame comes back intact, and reports lost, late and corrupt frames and the speed reached. While a test runs it uses both ports itself: the panes' roles (Console, Echo, Bridge, ...) are paused until it ends." />
+
+            <WrapPanel Grid.Row="1" Margin="0,4">
+                <TextBlock Text="Test path" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <ComboBox Width="420" ItemsSource="{Binding Paths}" SelectedItem="{Binding SelectedPath}"
+                          ToolTip.Tip="Which gateway(s) carry the frames. A loopback needs the gateway's transmit data wired to its own receive data and its transmit clock to its receive clock. Two gateways need A's TD and clock wired to B's RD and clock, and the other way round." />
+                <CheckBox Content="Keep the gateways' current line speed" IsChecked="{Binding NoBaud}" Margin="16,0,0,0"
+                          ToolTip.Tip="Normally the test sends BAUD to each gateway before every speed below. Tick this to leave the clocks as they are, for example when the far end is a real machine." />
             </WrapPanel>
-            <TextBlock Grid.Row="1" Classes="mono" FontSize="12" Text="{Binding StatusLine}" Margin="0,2" />
-            <ItemsControl Grid.Row="2" ItemsSource="{Binding Messages}" MaxHeight="90">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="x:String">
-                        <TextBlock Classes="mono" FontSize="11" Text="{Binding}" Foreground="Chocolate" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBox Grid.Row="3" Classes="mono" FontSize="12" Text="{Binding Report}" IsReadOnly="True"
-                     AcceptsReturn="True" BorderThickness="0" IsVisible="{Binding Report, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            <WrapPanel Grid.Row="2" Margin="0,4">
+                <TextBlock Text="Line speeds to test (bit/s)" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBox Width="300" Text="{Binding Rates}" Margin="0,0,12,0"
+                         ToolTip.Tip="The clock rates on the HDLC line, comma separated. The test runs once per speed, from left to right, and sets the gateways' BAUD to each before it starts. 9600..983000." />
+                <TextBlock Text="Seconds per speed" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <NumericUpDown Value="{Binding Seconds}" Minimum="1" Maximum="86400" Increment="10" FormatString="0" Width="90" ShowButtonSpinner="False" Margin="0,0,12,0"
+                               ToolTip.Tip="How long frames are sent at each speed. After that the test waits for the frames still under way." />
+            </WrapPanel>
+
+            <WrapPanel Grid.Row="3" Margin="0,4">
+                <TextBlock Text="Frame length (bytes)" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <NumericUpDown Value="{Binding Size}" Minimum="10" Maximum="1024" Increment="1" FormatString="0" Width="90" ShowButtonSpinner="False" Margin="0,0,12,0"
+                               ToolTip.Tip="Length of every test frame, the two FCS bytes included. 10 is the smallest that still carries a sequence number. RC422Dev (Pico) and HDLCGW (ESP32) both take up to 1024." />
+                <TextBlock Text="Data in flight (bytes)" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <NumericUpDown Value="{Binding Window}" Minimum="10" Maximum="1000000" Increment="100" FormatString="0" Width="100" ShowButtonSpinner="False" Margin="0,0,12,0"
+                               ToolTip.Tip="How many bytes may be on their way at once per direction before the test waits for frames to come back. Too small and the line idles; too large and the gateways' 16 KB buffers overflow. About 1.5 seconds of line time is a good value: speed / 8 * 1.5, at most 12000." />
+                <TextBlock Text="Lost after (s)" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <NumericUpDown Value="{Binding Timeout}" Minimum="1" Maximum="3600" Increment="1" FormatString="0" Width="80" ShowButtonSpinner="False" Margin="0,0,12,0"
+                               ToolTip.Tip="A frame not back after this many seconds counts as lost. Raised by itself when the data in flight takes longer than that to cross the line." />
+            </WrapPanel>
+
+            <WrapPanel Grid.Row="4" Margin="0,4">
+                <Button Content="Start" Command="{Binding StartCommand}" Margin="0,0,4,0" ToolTip.Tip="Run the test with the settings above. Both panes must be connected for two gateways; the one pane for a loopback." />
+                <Button Content="Stop" Command="{Binding StopCommand}" Margin="0,0,12,0" ToolTip.Tip="Stop after the frames under way have come back; the result so far is kept." />
+                <TextBlock Text="{Binding Verdict}" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0" />
+                <TextBlock Classes="mono" FontSize="12" Text="{Binding StatusLine}" VerticalAlignment="Center" />
+            </WrapPanel>
+
+            <StackPanel Grid.Row="5">
+                <ItemsControl ItemsSource="{Binding Messages}" MaxHeight="90">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <TextBlock Classes="mono" FontSize="11" Text="{Binding}" Foreground="Chocolate" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBox Classes="mono" FontSize="12" Text="{Binding Report}" IsReadOnly="True"
+                         AcceptsReturn="True" BorderThickness="0" IsVisible="{Binding Report, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                         ToolTip.Tip="Per speed and direction: frames sent, received intact (OK), with a wrong check (BadFCS), with wrong contents (Corrupt), never seen (Lost), seen after the timeout (Late), refused by the gateway (Dropped), the payload speed reached, and the round trip time." />
+            </StackPanel>
         </Grid>
-    </Expander>
+    </ScrollViewer>
 </UserControl>

@@ -6,30 +6,102 @@
         x:DataType="vm:MainViewModel"
         Title="{Binding Title}"
         Width="1500" Height="950" MinWidth="900" MinHeight="600">
-    <Grid RowDefinitions="*,Auto,Auto,Auto">
+    <!-- Panes on top, a splitter, then the tabbed tool area (Ronny, 2026-11-09). -->
+    <Grid RowDefinitions="*,4,300,Auto">
         <!-- The two panes side by side. -->
         <Grid Grid.Row="0" ColumnDefinitions="*,4,*">
             <views:GatewayPaneView Grid.Column="0" DataContext="{Binding PaneA}" />
             <GridSplitter Grid.Column="1" Background="Gray" ResizeDirection="Columns" />
             <views:GatewayPaneView Grid.Column="2" DataContext="{Binding PaneB}" />
         </Grid>
+        <GridSplitter Grid.Row="1" Background="Gray" ResizeDirection="Rows" />
 
-        <!-- The traffic test. -->
-        <views:TrafficTestView Grid.Row="1" DataContext="{Binding Traffic}" />
+        <TabControl Grid.Row="2" Margin="4,0">
+            <!-- Who is on each port: what the firmware said in its HELLO reply (Ronny, 2026-11-09). -->
+            <TabItem Header="Version">
+                <Grid ColumnDefinitions="160,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,6">
+                    <Grid.Styles>
+                        <Style Selector="TextBlock">
+                            <Setter Property="Margin" Value="0,2,12,2" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                    </Grid.Styles>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Gateway A" FontWeight="Bold" />
+                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Gateway B" FontWeight="Bold" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Port" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PaneA.FirmwarePort}" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding PaneB.FirmwarePort}" />
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Firmware" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PaneA.FirmwareName}" FontWeight="SemiBold" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding PaneB.FirmwareName}" FontWeight="SemiBold" />
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Firmware version" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding PaneA.FirmwareVersion}" />
+                    <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding PaneB.FirmwareVersion}" />
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Build date" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding PaneA.FirmwareBuild}" />
+                    <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding PaneB.FirmwareBuild}" />
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Chip" />
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding PaneA.FirmwareChip}" />
+                    <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding PaneB.FirmwareChip}" />
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Board" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding PaneA.FirmwareBoard}" />
+                    <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding PaneB.FirmwareBoard}" />
+                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Longest frame" />
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding PaneA.FirmwareMaxFrame}" />
+                    <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding PaneB.FirmwareMaxFrame}" />
+                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Capabilities" />
+                    <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding PaneA.FirmwareCapabilities}" />
+                    <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding PaneB.FirmwareCapabilities}" />
+                    <TextBlock Grid.Row="9" Grid.Column="0" Text="Control-frame protocol" />
+                    <TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding PaneA.FirmwareProtocol}" />
+                    <TextBlock Grid.Row="9" Grid.Column="2" Text="{Binding PaneB.FirmwareProtocol}" />
+                </Grid>
+            </TabItem>
 
-        <!-- MCP call log, shown on demand. -->
-        <ListBox Grid.Row="2" Classes="mono" FontSize="11" MaxHeight="140"
-                 ItemsSource="{Binding McpLog}" IsVisible="{Binding ShowMcpLog}" />
+            <!-- The traffic test. -->
+            <TabItem Header="Traffic test">
+                <views:TrafficTestView DataContext="{Binding Traffic}" />
+            </TabItem>
 
-        <!-- Status bar with the MCP controls. -->
-        <DockPanel Grid.Row="3" Margin="8,4" LastChildFill="True">
-            <CheckBox DockPanel.Dock="Left" Content="MCP server" IsChecked="{Binding McpEnabled}"
-                      ToolTip.Tip="Let an AI client (Claude Code, ...) drive this window over MCP on localhost. Remembered." />
-            <TextBlock DockPanel.Dock="Left" Text="port" VerticalAlignment="Center" Margin="12,0,4,0" />
-            <NumericUpDown DockPanel.Dock="Left" Value="{Binding McpPort}" Minimum="1" Maximum="65535" Increment="1"
-                           FormatString="0" Width="120" ShowButtonSpinner="False" />
-            <Button DockPanel.Dock="Left" Content="MCP log" Margin="12,0,0,0" Command="{Binding ToggleMcpLogCommand}" />
-            <TextBlock Text="{Binding McpStatus}" VerticalAlignment="Center" Margin="16,0,0,0" />
-        </DockPanel>
+            <!-- MCP server settings. -->
+            <TabItem Header="MCP">
+                <StackPanel Margin="8,6" Spacing="8">
+                    <WrapPanel>
+                        <CheckBox Content="MCP server" IsChecked="{Binding McpEnabled}"
+                                  ToolTip.Tip="Let an AI client (Claude Code, ...) drive this window over MCP on localhost. Remembered." />
+                        <TextBlock Text="port" VerticalAlignment="Center" Margin="12,0,4,0" />
+                        <NumericUpDown Value="{Binding McpPort}" Minimum="1" Maximum="65535" Increment="1"
+                                       FormatString="0" Width="120" ShowButtonSpinner="False" />
+                        <TextBlock Text="{Binding McpStatus}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                        <TextBlock Text="{Binding McpClientsText}" VerticalAlignment="Center" Margin="16,0,0,0" FontWeight="SemiBold"
+                                   ToolTip.Tip="Connections open to the MCP port. A client keeps its connection between calls and closes it after about two minutes of silence." />
+                    </WrapPanel>
+                    <TextBlock Text="The server listens on 127.0.0.1 only. Add it to Claude Code with:" />
+                    <TextBox Classes="mono" FontSize="12" Text="{Binding McpAddCommand, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" />
+                    <TextBlock Text="Other clients (Cursor, VS Code, Claude Desktop): see the MCP section of the README." Opacity="0.8" />
+                </StackPanel>
+            </TabItem>
+
+            <!-- MCP call log. -->
+            <TabItem Header="MCP log">
+                <Grid RowDefinitions="Auto,*" Margin="4,2">
+                    <DockPanel Grid.Row="0" LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding McpClientsText}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding McpStatus}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                        <Button DockPanel.Dock="Right" Content="Clear" Command="{Binding ClearMcpLogCommand}" />
+                    </DockPanel>
+                    <ListBox Grid.Row="1" Classes="mono" FontSize="11" ItemsSource="{Binding McpLog}" />
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Bottom bar: who is on A and B, from their HELLO replies. -->
+        <Border Grid.Row="3" BorderThickness="0,1,0,0" BorderBrush="Gray" Padding="8,3">
+            <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Left" Text="{Binding PaneA.VersionSummary}" FontSize="12" />
+                <TextBlock DockPanel.Dock="Left" Text="|" FontSize="12" Margin="12,0" Opacity="0.5" />
+                <TextBlock Text="{Binding PaneB.VersionSummary}" FontSize="12" />
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>

@@ -151,7 +151,7 @@ public sealed class FakeGateway
         {
             case ControlFrameType.Hello:
             {
-                string text = "name=FAKEGW\nversion=0.2.0\nbuild=test\nmaxframe=1024\ncaps=cmd,log,stat\n";
+                string text = "name=FAKEGW\nversion=0.2.0\nbuild=test\nchip=FAKE1\nboard=Test bench\nmaxframe=1024\ncaps=cmd,log,stat\n";
                 byte[] reply = new byte[1 + text.Length];
                 reply[0] = 1;
                 Encoding.ASCII.GetBytes(text, 0, text.Length, reply, 1);

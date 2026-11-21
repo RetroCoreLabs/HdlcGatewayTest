@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 1985-2026 Ronny Hansen
 
+using System.Diagnostics;
 using System.IO.Ports;
 using HdlcGatewayTest.Core;
 
@@ -37,6 +38,10 @@ public sealed class SerialTransport : IGatewayTransport
     private long _driverErrors;
     private long _bytesReceived;
     private string _lastDriverError = string.Empty;
+    private long _reads;
+    private int _readMaxBytes;
+    private long _readGapMaxTicks;
+    private long _lastReadTimestamp;
 
     /// <summary>
     /// The driver reported a receive error. RXOver = its own receive buffer overflowed (the PC
@@ -88,8 +93,40 @@ public sealed class SerialTransport : IGatewayTransport
     /// <inheritdoc/>
     public long BytesReceived => Interlocked.Read(ref _bytesReceived);
 
+    /// <inheritdoc/>
+    public WriteMeter Writes { get; } = new WriteMeter();
+
     /// <summary>The last driver error kind seen (RXOver, Overrun, Frame, ...), or empty.</summary>
     public string LastDriverError => _lastDriverError;
+
+    /// <summary>Reads that returned data since <see cref="Open"/>.</summary>
+    public long Reads => Interlocked.Read(ref _reads);
+
+    /// <summary>Most bytes one read returned (the read buffer is 4096).</summary>
+    public int ReadMaxBytes => _readMaxBytes;
+
+    /// <summary>
+    /// Longest time between two reads that returned data, in microseconds: how long the PC
+    /// left the far end's output unfetched (HDLCGW session's question, 2026-11-09, while
+    /// hunting why the ESP's USB send ring filled although the mean rate was fine).
+    /// </summary>
+    public long ReadGapMaxMicroseconds => Interlocked.Read(ref _readGapMaxTicks) * 1_000_000 / Stopwatch.Frequency;
+
+    /// <inheritdoc/>
+    public void ResetReadStatistics()
+    {
+        Interlocked.Exchange(ref _reads, 0);
+        _readMaxBytes = 0;
+        Interlocked.Exchange(ref _readGapMaxTicks, 0);
+        _lastReadTimestamp = 0;    // the first read after the reset starts the gap clock
+    }
+
+    /// <inheritdoc/>
+    public string DescribeReads()
+    {
+        return "reads " + Reads + ", biggest read " + ReadMaxBytes + " bytes, longest gap between reads "
+               + ReadGapMaxMicroseconds + " us (reader thread, blocking 4096-byte reads, driver buffer 65536)";
+    }
 
     /// <inheritdoc/>
     public event Action<Exception>? Faulted;
@@ -124,7 +161,9 @@ public sealed class SerialTransport : IGatewayTransport
     /// <inheritdoc/>
     public void Write(ReadOnlySpan<byte> data)
     {
+        long start = Stopwatch.GetTimestamp();
         _port.BaseStream.Write(data);
+        Writes.Record(start, data.Length);
     }
 
     /// <summary>Close the port and stop the reader thread.</summary>
@@ -161,19 +200,36 @@ public sealed class SerialTransport : IGatewayTransport
             {
                 return;
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException || ex is InvalidOperationException
+                                       || ex is OperationCanceledException || ex is ObjectDisposedException
+                                       || ex is UnauthorizedAccessException)
             {
-                Faulted?.Invoke(ex);    // port vanished; the main loop will notice nothing arrives
-                return;
-            }
-            catch (InvalidOperationException ex)
-            {
+                // The port vanished (board reset or reflashed while open: 2026-11-09 01:57 the
+                // ESP32 was reflashed with COM10 open and SerialStream.EndRead threw
+                // OperationCanceledException, which was not caught here, and an unhandled
+                // exception on a thread kills the whole process: the window died mid-bench).
+                // Tell the session; it shows "PORT FAILED" with the message.
                 Faulted?.Invoke(ex);
                 return;
             }
             if (n <= 0)
             {
                 continue;
+            }
+            long now = Stopwatch.GetTimestamp();
+            if (_lastReadTimestamp != 0)
+            {
+                long gap = now - _lastReadTimestamp;
+                if (gap > Interlocked.Read(ref _readGapMaxTicks))
+                {
+                    Interlocked.Exchange(ref _readGapMaxTicks, gap);
+                }
+            }
+            _lastReadTimestamp = now;
+            Interlocked.Increment(ref _reads);
+            if (n > _readMaxBytes)
+            {
+                _readMaxBytes = n;
             }
             Interlocked.Add(ref _bytesReceived, n);
             lock (_lock)

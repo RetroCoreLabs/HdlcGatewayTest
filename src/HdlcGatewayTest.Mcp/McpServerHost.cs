@@ -4,9 +4,11 @@
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
 namespace HdlcGatewayTest.Mcp;
 
@@ -24,15 +26,34 @@ public sealed class McpServerHost : IAsyncDisposable
     public const int DefaultPort = 2525;
 
     private readonly WebApplication _app;
+    private readonly ConnectionCounter _connections;
 
-    private McpServerHost(WebApplication app, string url)
+    private McpServerHost(WebApplication app, string url, ConnectionCounter connections)
     {
         _app = app;
         Url = url;
+        _connections = connections;
     }
 
     /// <summary>The URL the server is listening on (http://127.0.0.1:port/mcp).</summary>
     public string Url { get; }
+
+    /// <summary>
+    /// TCP connections open to the MCP port right now: the clients connected. This is counted
+    /// at the connection, not at the MCP session, because the 2026-07-28 protocol revision
+    /// removed sessions from streamable HTTP (the SDK's own notes on SessionMode) and a test
+    /// showed the SDK client holds none after initialize. An HTTP client keeps its connection
+    /// open between calls and closes it after about two minutes of silence, so a quiet client
+    /// drops out of the count after that.
+    /// </summary>
+    public int ActiveConnections => _connections.Count;
+
+    /// <summary>Raised on a server thread whenever <see cref="ActiveConnections"/> changes.</summary>
+    public event Action<int>? ActiveConnectionsChanged
+    {
+        add => _connections.Changed += value;
+        remove => _connections.Changed -= value;
+    }
 
     /// <summary>
     /// Build and start the server. The tool provider decides what the AI can do; this class
@@ -51,9 +72,12 @@ public sealed class McpServerHost : IAsyncDisposable
             throw new ArgumentNullException(nameof(tools));
         }
 
+        ConnectionCounter connections = new ConnectionCounter(tools.Log);
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();    // the hosting program owns its own logging
-        builder.WebHost.UseUrls("http://127.0.0.1:" + port);
+        // Localhost only, and every connection passes the counter on its way in and out.
+        builder.WebHost.ConfigureKestrel(kestrel =>
+            kestrel.ListenLocalhost(port, listen => listen.Use(connections.Middleware)));
 
         builder.Services
             .AddMcpServer(options =>
@@ -74,7 +98,10 @@ public sealed class McpServerHost : IAsyncDisposable
             })
             .WithHttpTransport()
             .WithListToolsHandler((request, ct) =>
-                ValueTask.FromResult(new ListToolsResult { Tools = tools.BuildToolList() }))
+            {
+                tools.Log.LogCall("tools/list", string.Empty);
+                return ValueTask.FromResult(new ListToolsResult { Tools = tools.BuildToolList() });
+            })
             .WithCallToolHandler((request, ct) =>
                 new ValueTask<CallToolResult>(
                     tools.CallToolAsync(request.Params?.Name ?? string.Empty, request.Params?.Arguments, ct)));
@@ -83,7 +110,7 @@ public sealed class McpServerHost : IAsyncDisposable
         app.MapMcp("/mcp");
 
         await app.StartAsync(cancellationToken).ConfigureAwait(false);
-        return new McpServerHost(app, "http://127.0.0.1:" + port + "/mcp");
+        return new McpServerHost(app, "http://127.0.0.1:" + port + "/mcp", connections);
     }
 
     /// <summary>Stop the listener.</summary>
@@ -91,5 +118,52 @@ public sealed class McpServerHost : IAsyncDisposable
     {
         await _app.StopAsync().ConfigureAwait(false);
         await _app.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Counts the TCP connections Kestrel has open on the MCP port and writes each open and
+    /// close to the log.
+    /// </summary>
+    private sealed class ConnectionCounter
+    {
+        private readonly McpTrafficLog _log;
+        private int _count;
+
+        public ConnectionCounter(McpTrafficLog log)
+        {
+            _log = log;
+        }
+
+        /// <summary>Connections open.</summary>
+        public int Count => Volatile.Read(ref _count);
+
+        /// <summary>Raised after every change, with the new count.</summary>
+        public event Action<int>? Changed;
+
+        /// <summary>
+        /// Kestrel connection middleware: runs once per TCP connection for its whole life.
+        /// </summary>
+        /// <param name="next">The rest of the pipeline (HTTP).</param>
+        /// <returns>The delegate Kestrel calls per connection.</returns>
+        public ConnectionDelegate Middleware(ConnectionDelegate next)
+        {
+            return async context =>
+            {
+                string peer = context.RemoteEndPoint?.ToString() ?? "?";
+                int now = Interlocked.Increment(ref _count);
+                _log.LogEvent("client connected from " + peer + ", " + now + " connected");
+                Changed?.Invoke(now);
+                try
+                {
+                    await next(context).ConfigureAwait(false);
+                }
+                finally
+                {
+                    now = Interlocked.Decrement(ref _count);
+                    _log.LogEvent("client " + peer + " disconnected, " + now + " connected");
+                    Changed?.Invoke(now);
+                }
+            };
+        }
     }
 }
