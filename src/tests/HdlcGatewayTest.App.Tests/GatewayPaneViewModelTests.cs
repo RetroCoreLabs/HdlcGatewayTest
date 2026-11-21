@@ -132,7 +132,7 @@ public sealed class GatewayPaneViewModelTests
         a.ConnectCommand.Execute(null);
         Assert.That(WaitUntil(() => a.IsConnected), Is.True);
 
-        a.SelectedRole = "Free";
+        a.SelectedRole = GatewayPaneViewModel.RoleName(GatewayRole.Free);
         Assert.That(a.ShowHexBox, Is.True);
         a.HexText = "01 3F";
         a.SendHexCommand.Execute(null);
@@ -144,16 +144,16 @@ public sealed class GatewayPaneViewModelTests
         a.SendHexCommand.Execute(null);
         Assert.That(HasLine(a, ConsoleLineKind.Notice, "not a hex digit"), Is.True);
 
-        a.SelectedRole = "Bridge";
+        a.SelectedRole = GatewayPaneViewModel.RoleName(GatewayRole.Bridge);
         Assert.That(HasLine(a, ConsoleLineKind.Notice, "both panes"), Is.True);
         Assert.That(set.A.Role, Is.Not.EqualTo(GatewayRole.Bridge));
 
         b.ConnectCommand.Execute(null);
         Assert.That(WaitUntil(() => b.IsConnected), Is.True);
-        a.SelectedRole = "Bridge";
+        a.SelectedRole = GatewayPaneViewModel.RoleName(GatewayRole.Bridge);
         Assert.That(set.A.Role, Is.EqualTo(GatewayRole.Bridge));
-        Assert.That(WaitUntil(() => b.SelectedRole == "Bridge"), Is.True, "pane B follows");
-        a.SelectedRole = "Console";
+        Assert.That(WaitUntil(() => b.SelectedRole == GatewayPaneViewModel.RoleName(GatewayRole.Bridge)), Is.True, "pane B follows");
+        a.SelectedRole = GatewayPaneViewModel.RoleName(GatewayRole.Console);
         Assert.That(set.B.Role, Is.EqualTo(GatewayRole.Console));
     }
 
@@ -234,5 +234,97 @@ public sealed class GatewayPaneViewModelTests
             }
         }
         return false;
+    }
+
+    [Test]
+    public void VersionFields_FollowTheHelloReply()
+    {
+        using GatewaySessionSet set = new GatewaySessionSet();
+        set.Start();
+        FakeFactory factory = new FakeFactory();
+        GatewayPaneViewModel vm = new GatewayPaneViewModel(set, set.A, factory, new InlineDispatcher(), 1362);
+        Assert.That(vm.FirmwareName, Is.EqualTo("-"));
+        Assert.That(vm.VersionSummary, Does.Contain("no gateway identified"));
+
+        vm.SelectedEndpoint = "GOOD";
+        vm.ConnectCommand.Execute(null);
+        Assert.That(WaitUntil(() => vm.IsConnected), Is.True);
+        Assert.That(vm.FirmwareName, Is.EqualTo("FAKEGW"));
+        Assert.That(vm.FirmwareVersion, Is.EqualTo("0.2.0"));
+        Assert.That(vm.FirmwareBuild, Is.EqualTo("test"));
+        Assert.That(vm.FirmwareChip, Is.EqualTo("FAKE1"));
+        Assert.That(vm.FirmwareBoard, Is.EqualTo("Test bench"));
+        Assert.That(vm.FirmwareMaxFrame, Is.EqualTo("1024 bytes"));
+        Assert.That(vm.FirmwareCapabilities, Is.EqualTo("cmd, log, stat"));
+        Assert.That(vm.FirmwarePort, Is.EqualTo("GOOD"));
+        Assert.That(vm.VersionSummary, Is.EqualTo("Port A: FAKEGW 0.2.0 on FAKE1 (Test bench), built test"));
+    }
+
+    [Test]
+    public void Setup_CopiesThePane_AndApplyChangesEndpointRoleAndTcpServer()
+    {
+        using GatewaySessionSet set = new GatewaySessionSet();
+        set.Start();
+        FakeFactory factory = new FakeFactory();
+        GatewayPaneViewModel vm = new GatewayPaneViewModel(set, set.A, factory, new InlineDispatcher(), 1362);
+        vm.SelectedEndpoint = "GOOD";
+        vm.SelectedBaud = "57600";
+
+        PaneSetupViewModel setup = PaneSetupViewModel.From(vm);
+        Assert.That(setup.Title, Is.EqualTo("Setup gateway A"));
+        Assert.That(setup.UseTcpClient, Is.False);
+        Assert.That(setup.SelectedSerialPort, Is.EqualTo("GOOD"));
+        Assert.That(setup.Baud, Is.EqualTo("57600"));
+        Assert.That(setup.TcpServerEnabled, Is.False);
+        Assert.That(setup.TcpServerPort, Is.EqualTo(1362));
+        Assert.That(setup.Validate(), Is.True);
+
+        // TCP client without a host is refused; with one it becomes a host:port endpoint.
+        setup.UseTcpClient = true;
+        Assert.That(setup.Validate(), Is.False);
+        Assert.That(setup.Error, Does.Contain("host"));
+        setup.TcpHost = "hdlcgw.local";
+        setup.TcpClientPort = 1362;
+        Assert.That(setup.Validate(), Is.True);
+        Assert.That(setup.Endpoint, Is.EqualTo("hdlcgw.local:1362"));
+        setup.SelectedRole = GatewayPaneViewModel.RoleName(GatewayRole.Echo);
+        setup.Baud = "19200";
+        vm.ApplySetup(setup);
+        Assert.That(vm.SelectedEndpoint, Is.EqualTo("hdlcgw.local:1362"));
+        Assert.That(vm.Endpoints, Does.Contain("hdlcgw.local:1362"));
+        Assert.That(set.A.Role, Is.EqualTo(GatewayRole.Echo));
+        Assert.That(vm.SelectedBaud, Is.EqualTo("19200"));
+        Assert.That(vm.ConfigSummary, Does.Contain("TCP client to hdlcgw.local:1362"));
+        Assert.That(vm.ConfigSummary, Does.Contain("Echo"));
+
+        // TCP server on a connected pane: the role becomes TCP server on the chosen port.
+        setup.UseTcpClient = false;
+        setup.SelectedSerialPort = "GOOD";
+        vm.ApplySetup(setup);
+        vm.ConnectCommand.Execute(null);
+        Assert.That(WaitUntil(() => vm.IsConnected), Is.True);
+        setup.TcpServerEnabled = true;
+        setup.TcpServerPort = 0;
+        Assert.That(setup.Validate(), Is.False);
+        setup.TcpServerPort = FreePort();
+        Assert.That(setup.Validate(), Is.True);
+        vm.ApplySetup(setup);
+        Assert.That(WaitUntil(() => set.A.TcpPort == setup.TcpServerPort), Is.True, "listening on the chosen port");
+        Assert.That(set.A.Role, Is.EqualTo(GatewayRole.TcpListen));
+        Assert.That(vm.ConfigSummary, Does.Contain("TCP server on " + setup.TcpServerPort));
+        setup.TcpServerEnabled = false;
+        setup.SelectedRole = GatewayPaneViewModel.RoleName(GatewayRole.Console);
+        vm.ApplySetup(setup);
+        Assert.That(WaitUntil(() => set.A.TcpPort == 0), Is.True, "server stopped");
+        Assert.That(set.A.Role, Is.EqualTo(GatewayRole.Console));
+    }
+
+    private static int FreePort()
+    {
+        System.Net.Sockets.TcpListener l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        l.Start();
+        int port = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
+        l.Stop();
+        return port;
     }
 }

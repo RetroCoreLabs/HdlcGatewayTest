@@ -21,13 +21,32 @@ public partial class GatewayPaneView : UserControl
             if (_vm != null)
             {
                 _vm.ConsoleLineAdded -= OnConsoleLineAdded;
+                _vm.SetupRequested -= OnSetupRequested;
             }
             _vm = DataContext as GatewayPaneViewModel;
             if (_vm != null)
             {
                 _vm.ConsoleLineAdded += OnConsoleLineAdded;
+                _vm.SetupRequested += OnSetupRequested;
             }
         };
+    }
+
+    /// <summary>Open the Setup window over the main window; apply when OK was pressed.</summary>
+    private async void OnSetupRequested(GatewayPaneViewModel pane)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+        pane.RefreshEndpoints();
+        PaneSetupViewModel setup = PaneSetupViewModel.From(pane);
+        PaneSetupWindow window = new PaneSetupWindow { DataContext = setup };
+        bool ok = await window.ShowDialog<bool>(owner);
+        if (ok)
+        {
+            pane.ApplySetup(setup);
+        }
     }
 
     private void OnConsoleLineAdded()

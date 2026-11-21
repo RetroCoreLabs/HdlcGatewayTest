@@ -28,13 +28,15 @@ public sealed class GatewayPaneViewModel : ObservableObject
     private string? _selectedEndpoint;
     private string _stateText = "Disconnected";
     private string _identityText = string.Empty;
-    private string _selectedRole = nameof(GatewayRole.Console);
+    private string _selectedRole = RoleNames[0];
     private string _selectedBaud = "38400";
     private string _selectedLogLevel = nameof(LogLevel.Off);
     private string _commandText = string.Empty;
     private string _hexText = string.Empty;
     private bool _addFcs = true;
     private int _tcpPort;
+    private string _tcpForwardHost = string.Empty;
+    private int _tcpForwardPort = 1362;
     private string _tcpText = string.Empty;
     private FrameRecordViewModel? _selectedFrame;
     private string _frameDetail = "Click a frame to see it decoded.";
@@ -72,6 +74,8 @@ public sealed class GatewayPaneViewModel : ObservableObject
         ClearConsoleCommand = new RelayCommand(() => ConsoleLines.Clear());
         ClearFramesCommand = new RelayCommand(() => { Frames.Clear(); Session.Frames.Clear(); });
         StopTcpCommand = new RelayCommand(() => Session.StopTcpListen(), () => Session.TcpPort != 0);
+        StartTcpCommand = new RelayCommand(() => ApplyRole(GatewayRole.TcpListen), () => IsConnected);
+        SetupCommand = new RelayCommand(() => SetupRequested?.Invoke(this), () => !_busy);
 
         session.Console.Added += line => _ui.Post(() => AddConsoleLine(line));
         session.Frames.Added += record => _ui.Post(() => AddFrame(record));
@@ -100,6 +104,7 @@ public sealed class GatewayPaneViewModel : ObservableObject
             if (SetProperty(ref _selectedEndpoint, value))
             {
                 ConnectCommand.RaiseCanExecuteChanged();
+                Raise(nameof(ConfigSummary));
             }
         }
     }
@@ -131,16 +136,51 @@ public sealed class GatewayPaneViewModel : ObservableObject
     /// </summary>
     public bool HasFirmwareLog => HasControlFrames && Session.Identity != null && Session.Identity.Has("log");
 
-    /// <summary>Role names for the picker.</summary>
-    public string[] Roles { get; } = Enum.GetNames<GatewayRole>();
+    /// <summary>
+    /// The roles in plain words, in <see cref="GatewayRole"/> order (Ronny, 2026-11-09: the bare
+    /// enum names did not say what a role does or how it relates to the traffic test).
+    /// </summary>
+    public static readonly string[] RoleNames =
+    {
+        "Console",
+        "Free (paste hex)",
+        "Echo (send back)",
+        "Bridge A <-> B",
+        "TCP server",
+        "TCP client (to emulator)",
+    };
 
-    /// <summary>The pane's role; setting it acts on the session set.</summary>
+    /// <summary>Role names for the picker.</summary>
+    public string[] Roles => RoleNames;
+
+    /// <summary>The plain-words name of a role.</summary>
+    /// <param name="role">The role.</param>
+    /// <returns>Its entry in <see cref="RoleNames"/>.</returns>
+    public static string RoleName(GatewayRole role)
+    {
+        return RoleNames[(int)role];
+    }
+
+    /// <summary>
+    /// The pane's role as its plain-words name; setting it acts on the session set. The enum
+    /// name is accepted too.
+    /// </summary>
     public string SelectedRole
     {
         get => _selectedRole;
         set
         {
-            if (!SetProperty(ref _selectedRole, value) || !Enum.TryParse(value, out GatewayRole role))
+            if (!SetProperty(ref _selectedRole, value))
+            {
+                return;
+            }
+            int index = Array.IndexOf(RoleNames, value);
+            GatewayRole role;
+            if (index >= 0)
+            {
+                role = (GatewayRole)index;
+            }
+            else if (!Enum.TryParse(value, out role))
             {
                 return;
             }
@@ -159,7 +199,13 @@ public sealed class GatewayPaneViewModel : ObservableObject
     public string SelectedBaud
     {
         get => _selectedBaud;
-        set => SetProperty(ref _selectedBaud, value);
+        set
+        {
+            if (SetProperty(ref _selectedBaud, value))
+            {
+                Raise(nameof(ConfigSummary));
+            }
+        }
     }
 
     /// <summary>Log level names.</summary>
@@ -218,14 +264,66 @@ public sealed class GatewayPaneViewModel : ObservableObject
     /// <summary>True in the Free role: the hex box is shown.</summary>
     public bool ShowHexBox => Session.Role == GatewayRole.Free;
 
-    /// <summary>True in the TcpListen role: the port box is shown.</summary>
-    public bool ShowTcpBox => Session.Role == GatewayRole.TcpListen;
-
-    /// <summary>TCP listen port.</summary>
+    /// <summary>TCP server port: the port the pane listens on when told to.</summary>
     public int TcpPort
     {
         get => _tcpPort;
         set => SetProperty(ref _tcpPort, value);
+    }
+
+    /// <summary>Firmware name from HELLO, or "-" when nothing answered.</summary>
+    public string FirmwareName => Identity(i => i.Name);
+
+    /// <summary>Firmware version from HELLO.</summary>
+    public string FirmwareVersion => Identity(i => i.Version);
+
+    /// <summary>Firmware build date and time from HELLO.</summary>
+    public string FirmwareBuild => Identity(i => i.Build);
+
+    /// <summary>Chip from HELLO (ESP32-S2, RP2040), "-" on firmware that does not say.</summary>
+    public string FirmwareChip => Identity(i => i.Chip);
+
+    /// <summary>Board from HELLO (LOLIN S2 Mini, Raspberry Pi Pico).</summary>
+    public string FirmwareBoard => Identity(i => i.Board);
+
+    /// <summary>Longest frame the firmware takes, from HELLO.</summary>
+    public string FirmwareMaxFrame => Identity(i => i.MaxFrame > 0 ? i.MaxFrame + " bytes" : string.Empty);
+
+    /// <summary>Capability words from HELLO.</summary>
+    public string FirmwareCapabilities => Identity(i => string.Join(", ", i.Capabilities));
+
+    /// <summary>Control-frame protocol version from HELLO.</summary>
+    public string FirmwareProtocol => Identity(i => i.ProtocolVersion.ToString());
+
+    /// <summary>The port or host:port this pane is on, or "-".</summary>
+    public string FirmwarePort => Session.EndpointName.Length > 0 ? Session.EndpointName : "-";
+
+    /// <summary>
+    /// One line for the bottom bar: "Port A: HDLCGW 0.2.0 on ESP32-S2 (LOLIN S2 Mini), built Nov 9 2026 01:21:29".
+    /// </summary>
+    public string VersionSummary
+    {
+        get
+        {
+            GatewayIdentity? id = Session.Identity;
+            if (id == null)
+            {
+                return Title + ": no gateway identified";
+            }
+            string where = id.Chip.Length > 0 ? " on " + id.Chip + (id.Board.Length > 0 ? " (" + id.Board + ")" : string.Empty) : string.Empty;
+            return Title + ": " + id.Name + " " + id.Version + where + ", built " + id.Build;
+        }
+    }
+
+    private string Identity(Func<GatewayIdentity, string> pick)
+    {
+        GatewayIdentity? id = Session.Identity;
+        if (id == null)
+        {
+            return "-";
+        }
+        string value = pick(id);
+        return value.Length > 0 ? value : "-";
     }
 
     /// <summary>"listening on 1362, peer 172.24.50.23:4711" or empty.</summary>
@@ -321,6 +419,119 @@ public sealed class GatewayPaneViewModel : ObservableObject
 
     /// <summary>Stop the TCP listener.</summary>
     public RelayCommand StopTcpCommand { get; }
+
+    /// <summary>Host of the TCP server (an emulator) this pane forwards to in the TCP client role.</summary>
+    public string TcpForwardHost { get => _tcpForwardHost; set => SetProperty(ref _tcpForwardHost, value); }
+
+    /// <summary>Port of that TCP server.</summary>
+    public int TcpForwardPort { get => _tcpForwardPort; set => SetProperty(ref _tcpForwardPort, value); }
+
+    /// <summary>Start listening on <see cref="TcpPort"/>: the TCP server role.</summary>
+    public RelayCommand StartTcpCommand { get; }
+
+    /// <summary>Open the Setup window; the view listens on <see cref="SetupRequested"/>.</summary>
+    public RelayCommand SetupCommand { get; }
+
+    /// <summary>Raised by <see cref="SetupCommand"/>; the view opens the window and calls <see cref="ApplySetup"/>.</summary>
+    public event Action<GatewayPaneViewModel>? SetupRequested;
+
+    /// <summary>
+    /// One line under the header saying how the pane is set up: endpoint, role, line speed, TCP server.
+    /// </summary>
+    public string ConfigSummary
+    {
+        get
+        {
+            string endpoint = SelectedEndpoint ?? "no port chosen";
+            string how = endpoint.Contains(':') ? "TCP client to " + endpoint : endpoint;
+            string tcp = Session.TcpPort != 0
+                ? "TCP server on " + Session.TcpPort + (Session.TcpPeer != null ? " (peer " + Session.TcpPeer + ")" : " (no peer yet)")
+                : Session.Role == GatewayRole.TcpClient ? "forwarding to " + Session.TcpPeer : "no TCP server";
+            return how + "  |  " + RoleName(Session.Role) + "  |  " + SelectedBaud + " bit/s  |  " + tcp
+                   + (UseTextConsole ? "  |  legacy console" : string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Apply what the Setup window collected: the endpoint (reconnecting when it changed and
+    /// the pane was connected), the probe style, the line speed (BAUD sent when connected),
+    /// the role and the TCP server, and the log level.
+    /// </summary>
+    /// <param name="setup">The edited settings; must have passed <see cref="PaneSetupViewModel.Validate"/>.</param>
+    public void ApplySetup(PaneSetupViewModel setup)
+    {
+        string endpoint = setup.Endpoint;
+        if (endpoint.Length > 0 && !Endpoints.Contains(endpoint))
+        {
+            Endpoints.Add(endpoint);    // a host:port the port list cannot know
+        }
+        bool endpointChanged = !string.Equals(SelectedEndpoint, endpoint, StringComparison.Ordinal);
+        SelectedEndpoint = endpoint;
+        UseTextConsole = setup.UseTextConsole;
+        bool baudChanged = !string.Equals(SelectedBaud, setup.Baud.Trim(), StringComparison.Ordinal);
+        SelectedBaud = setup.Baud.Trim();
+        TcpPort = setup.TcpServerPort;
+        TcpForwardHost = setup.TcpForwardHost.Trim();
+        TcpForwardPort = setup.TcpForwardPort;
+        GatewayRole role = setup.TcpForwardEnabled ? GatewayRole.TcpClient
+            : setup.TcpServerEnabled ? GatewayRole.TcpListen
+            : Array.IndexOf(RoleNames, setup.SelectedRole) is int i && i >= 0 ? (GatewayRole)i : GatewayRole.Console;
+        if (role == GatewayRole.TcpListen && Session.Role == GatewayRole.TcpListen && Session.TcpPort != setup.TcpServerPort)
+        {
+            Session.StopTcpListen();    // same role, other port: restart the listener below
+        }
+
+        if (IsConnected && endpointChanged)
+        {
+            Reconnect(endpoint, role, baudChanged);
+            return;
+        }
+        if (role == GatewayRole.TcpClient && Session.Role == GatewayRole.TcpClient && Session.TcpPeer != TcpForwardHost + ":" + TcpForwardPort)
+        {
+            Session.StopTcpListen();    // same role, other server: reconnect below
+        }
+        if (role != Session.Role || (role == GatewayRole.TcpListen && Session.TcpPort == 0))
+        {
+            ApplyRole(role);
+        }
+        if (IsConnected && baudChanged)
+        {
+            _ = RunAsync("BAUD " + SelectedBaud);
+        }
+        SelectedLogLevel = setup.LogLevel;
+        Raise(nameof(ConfigSummary));
+    }
+
+    private void Reconnect(string endpoint, GatewayRole role, bool sendBaud)
+    {
+        SetBusy(true);
+        Task.Run(() =>
+        {
+            Session.Disconnect();
+            try
+            {
+                Session.Connect(_transports.Create(endpoint), UseTextConsole);
+            }
+            catch (ArgumentException ex)
+            {
+                Session.Console.Add(ConsoleLineKind.Notice, ex.Message, FrameSource.Console);
+            }
+            _ui.Post(() =>
+            {
+                SetBusy(false);
+                RefreshState();
+                if (role != Session.Role)
+                {
+                    ApplyRole(role);
+                }
+                if (sendBaud && IsConnected)
+                {
+                    _ = RunAsync("BAUD " + SelectedBaud);
+                }
+                Raise(nameof(ConfigSummary));
+            });
+        });
+    }
 
     /// <summary>Previous command into the box (Up arrow).</summary>
     public void HistoryUp()
@@ -471,12 +682,30 @@ public sealed class GatewayPaneViewModel : ObservableObject
                 }
                 break;
 
+            case GatewayRole.TcpClient:
+                if (Session.Role == GatewayRole.Bridge)
+                {
+                    _set.SetBridge(false);
+                }
+                if (TcpForwardHost.Length == 0)
+                {
+                    Session.Console.Add(ConsoleLineKind.Notice, "Give the TCP server's host in Setup first.", FrameSource.Console);
+                    _ui.Post(RefreshState);
+                    return;
+                }
+                Task.Run(() =>
+                {
+                    Session.StartTcpClient(TcpForwardHost, TcpForwardPort, out _);
+                    _ui.Post(RefreshState);
+                });
+                break;
+
             default:
                 if (Session.Role == GatewayRole.Bridge)
                 {
                     _set.SetBridge(false);
                 }
-                if (Session.Role == GatewayRole.TcpListen)
+                if (Session.Role == GatewayRole.TcpListen || Session.Role == GatewayRole.TcpClient)
                 {
                     Session.StopTcpListen();
                 }
@@ -508,7 +737,7 @@ public sealed class GatewayPaneViewModel : ObservableObject
         IdentityText = Session.Identity != null
             ? Session.Identity.Name + " " + Session.Identity.Version + " on " + Session.EndpointName
             : Session.EndpointName;
-        _selectedRole = Session.Role.ToString();
+        _selectedRole = RoleName(Session.Role);
         Raise(nameof(SelectedRole));
         _selectedLogLevel = Session.LogLevel.ToString();
         Raise(nameof(SelectedLogLevel));
@@ -516,15 +745,27 @@ public sealed class GatewayPaneViewModel : ObservableObject
         Raise(nameof(HasControlFrames));
         Raise(nameof(HasFirmwareLog));
         Raise(nameof(ShowHexBox));
-        Raise(nameof(ShowTcpBox));
-        TcpText = Session.TcpPort == 0 ? string.Empty
-                : "listening on " + Session.TcpPort + (Session.TcpPeer != null ? ", peer " + Session.TcpPeer : ", no peer");
+        Raise(nameof(FirmwareName));
+        Raise(nameof(FirmwareVersion));
+        Raise(nameof(FirmwareBuild));
+        Raise(nameof(FirmwareChip));
+        Raise(nameof(FirmwareBoard));
+        Raise(nameof(FirmwareMaxFrame));
+        Raise(nameof(FirmwareCapabilities));
+        Raise(nameof(FirmwareProtocol));
+        Raise(nameof(FirmwarePort));
+        Raise(nameof(VersionSummary));
+        Raise(nameof(ConfigSummary));
+        TcpText = Session.TcpPort == 0 ? "not listening"
+                : "listening on " + Session.TcpPort + (Session.TcpPeer != null ? ", peer " + Session.TcpPeer : ", no peer yet");
         ConnectCommand.RaiseCanExecuteChanged();
         DisconnectCommand.RaiseCanExecuteChanged();
         SendCommand.RaiseCanExecuteChanged();
         SendHexCommand.RaiseCanExecuteChanged();
         SetBaudCommand.RaiseCanExecuteChanged();
         StopTcpCommand.RaiseCanExecuteChanged();
+        StartTcpCommand.RaiseCanExecuteChanged();
+        SetupCommand.RaiseCanExecuteChanged();
     }
 
     private void AddConsoleLine(ConsoleLine line)

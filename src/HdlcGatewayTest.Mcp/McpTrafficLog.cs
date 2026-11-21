@@ -6,7 +6,7 @@ namespace HdlcGatewayTest.Mcp;
 
 /// <summary>One MCP call or result.</summary>
 /// <param name="Time">When.</param>
-/// <param name="Tool">Tool name.</param>
+/// <param name="Tool">Tool name, or <see cref="McpTrafficLog.ServerTool"/> for a server event.</param>
 /// <param name="IsResult">False for the call, true for its result.</param>
 /// <param name="IsError">For a result: whether it was an error.</param>
 /// <param name="Text">Arguments, or the first text of the result, cut short.</param>
@@ -19,6 +19,9 @@ public sealed record McpTrafficEntry(DateTime Time, string Tool, bool IsResult, 
 /// </summary>
 public sealed class McpTrafficLog
 {
+    /// <summary>The <see cref="McpTrafficEntry.Tool"/> of a server event (session opened or ended).</summary>
+    public const string ServerTool = "server";
+
     private readonly List<McpTrafficEntry> _entries = new List<McpTrafficEntry>();
     private readonly object _lock = new object();
     private readonly int _capacity;
@@ -41,6 +44,13 @@ public sealed class McpTrafficLog
     public void LogCall(string tool, string arguments)
     {
         Add(new McpTrafficEntry(DateTime.Now, tool, false, false, Shorten(arguments), TimeSpan.Zero));
+    }
+
+    /// <summary>Record a server event: a session opened or ended.</summary>
+    /// <param name="text">What happened, one line.</param>
+    public void LogEvent(string text)
+    {
+        Add(new McpTrafficEntry(DateTime.Now, ServerTool, false, false, Shorten(text), TimeSpan.Zero));
     }
 
     /// <summary>Record a result.</summary>

@@ -98,12 +98,12 @@ public sealed class GatewaySessionTests
         set.Start();
         set.A.Connect(t);
         set.A.Role = GatewayRole.Echo;
-        int writesBefore = t.Writes.Count;
+        int writesBefore = t.WrittenBlocks.Count;
 
         byte[] frame = DataFrame(0x01, 20, 3);
         t.InjectFrame(frame);           // "the line delivered a frame"
 
-        Assert.That(WaitUntil(() => t.Writes.Count > writesBefore), Is.True, "echoed within 2 s");
+        Assert.That(WaitUntil(() => t.WrittenBlocks.Count > writesBefore), Is.True, "echoed within 2 s");
         // The fake loops the echo back, so this is an echo storm from here on; stop it before
         // reading the log, otherwise the records keep moving.
         set.A.Role = GatewayRole.Console;
@@ -143,15 +143,15 @@ public sealed class GatewaySessionTests
         set.SetBridge(true);
         Assert.That(set.A.Role, Is.EqualTo(GatewayRole.Bridge));
         Assert.That(set.B.Role, Is.EqualTo(GatewayRole.Bridge));
-        int aWrites = ta.Writes.Count;
-        int bWrites = tb.Writes.Count;
+        int aWrites = ta.WrittenBlocks.Count;
+        int bWrites = tb.WrittenBlocks.Count;
 
         byte[] toB = DataFrame(0xA1, 30, 4);
         byte[] toA = DataFrame(0xB2, 40, 5);
         ta.InjectFrame(toB);
         tb.InjectFrame(toA);
 
-        Assert.That(WaitUntil(() => tb.Writes.Count > bWrites && ta.Writes.Count > aWrites), Is.True);
+        Assert.That(WaitUntil(() => tb.WrittenBlocks.Count > bWrites && ta.WrittenBlocks.Count > aWrites), Is.True);
         // The fakes loop every frame back, so the bridged frames ping-pong between the panes from
         // here on; stop that before reading the logs, then look the records up by content.
         set.SetBridge(false);
@@ -183,12 +183,12 @@ public sealed class GatewaySessionTests
         Assert.That(WaitUntil(() => set.A.TcpPeer != null), Is.True);
 
         // nd100x sends a frame: it must go out on the serial port.
-        int writesBefore = t.Writes.Count;
+        int writesBefore = t.WrittenBlocks.Count;
         byte[] fromPeer = DataFrame(0x01, 24, 6);
         byte[] stuffed = new byte[ByteFrame.MaxEncodedLength(fromPeer.Length)];
         int n = ByteFrame.Encode(fromPeer, stuffed);
         stream.Write(stuffed, 0, n);
-        Assert.That(WaitUntil(() => t.Writes.Count > writesBefore), Is.True);
+        Assert.That(WaitUntil(() => t.WrittenBlocks.Count > writesBefore), Is.True);
         FrameRecord? rxTcp = FindReceived(set.A.Frames, FrameSource.Tcp, fromPeer);
         Assert.That(rxTcp, Is.Not.Null, "listed as received from the TCP peer");
         Assert.That(FindSent(set.A.Frames, FrameSource.Tcp, fromPeer), Is.Not.Null, "listed as sent to the line for the TCP peer");
@@ -219,6 +219,81 @@ public sealed class GatewaySessionTests
 
         set.A.StopTcpListen();
         Assert.That(set.A.TcpPort, Is.EqualTo(0));
+        Assert.That(set.A.Role, Is.EqualTo(GatewayRole.Console));
+    }
+
+    [Test]
+    public void TcpClient_ConnectsOut_ForwardsLineFramesToServer_AndServerFramesToLine()
+    {
+        using GatewaySessionSet set = new GatewaySessionSet();
+        FakeTransport t = new FakeTransport();
+        _ = new FakeGateway(t, FakeGateway.Kind.ControlFrames);
+        set.Start();
+        set.A.Connect(t);
+
+        // The "emulator": a server that listens, as nd100x does.
+        TcpListener server = new TcpListener(System.Net.IPAddress.Loopback, 0);
+        server.Start();
+        try
+        {
+            int port = ((System.Net.IPEndPoint)server.LocalEndpoint).Port;
+            Assert.That(set.A.StartTcpClient("127.0.0.1", port, out string? error), Is.True, error);
+            Assert.That(set.A.Role, Is.EqualTo(GatewayRole.TcpClient));
+            using TcpClient accepted = server.AcceptTcpClient();
+            accepted.ReceiveTimeout = 2000;
+            NetworkStream stream = accepted.GetStream();
+
+            // A frame arrives on the line: it must reach the server, byte-stuffed and unchanged.
+            byte[] fromLine = DataFrame(0x03, 16, 7);
+            t.InjectFrame(fromLine);
+            byte[] rx = new byte[256];
+            ByteFrameDecoder dec = new ByteFrameDecoder();
+            bool got = false;
+            int seen = 0;
+            while (!got && seen < 10)
+            {
+                int r = stream.Read(rx, 0, rx.Length);
+                Assert.That(r, Is.GreaterThan(0));
+                for (int i = 0; i < r && !got; i++)
+                {
+                    if (dec.Feed(rx[i]))
+                    {
+                        seen++;
+                        got = dec.Frame.SequenceEqual(fromLine);
+                    }
+                }
+            }
+            Assert.That(got, Is.True, "the line's frame reached the server");
+
+            // The server sends a frame: it must go out on the line.
+            int writesBefore = t.WrittenBlocks.Count;
+            byte[] fromServer = DataFrame(0x01, 24, 6);
+            byte[] stuffed = new byte[ByteFrame.MaxEncodedLength(fromServer.Length)];
+            int n = ByteFrame.Encode(fromServer, stuffed);
+            stream.Write(stuffed, 0, n);
+            Assert.That(WaitUntil(() => t.WrittenBlocks.Count > writesBefore), Is.True);
+            Assert.That(FindReceived(set.A.Frames, FrameSource.Tcp, fromServer), Is.Not.Null, "listed as received from the server");
+
+            set.A.StopTcpListen();
+            Assert.That(set.A.Role, Is.EqualTo(GatewayRole.Console));
+        }
+        finally
+        {
+            server.Stop();
+        }
+    }
+
+    [Test]
+    public void TcpClient_NobodyListening_FailsWithAMessage_AndKeepsTheRole()
+    {
+        using GatewaySessionSet set = new GatewaySessionSet();
+        FakeTransport t = new FakeTransport();
+        _ = new FakeGateway(t, FakeGateway.Kind.ControlFrames);
+        set.Start();
+        set.A.Connect(t);
+
+        Assert.That(set.A.StartTcpClient("127.0.0.1", FreePort(), out string? error), Is.False);
+        Assert.That(error, Does.Contain("127.0.0.1"));
         Assert.That(set.A.Role, Is.EqualTo(GatewayRole.Console));
     }
 
@@ -257,18 +332,22 @@ public sealed class GatewaySessionTests
         };
         Recorder rec = new Recorder();
 
-        bool passed = await set.RunTrafficTestAsync(settings, rec, useB: false);
+        settings.Path = TrafficTestPath.LoopbackA;
+        bool passed = await set.RunTrafficTestAsync(settings, rec);
 
         Assert.That(passed, Is.True);
         Assert.That(set.TestRunning, Is.False);
         Assert.That(set.A.InTrafficTest, Is.False);
-        Assert.That(set.A.Frames.Total, Is.GreaterThan(10), "the frame log listed traffic frames too");
+        // Traffic frames are counted, not listed (the listing cost 8.5 s of GC pauses a minute on
+        // the bench, 2026-11-09); the control frames of the probe and BAUD are still in the list.
+        Assert.That(set.A.FramesNotListedDuringTest, Is.GreaterThan(10), "the traffic frames were seen and counted");
+        Assert.That(set.A.Frames.Total, Is.LessThan(set.A.FramesNotListedDuringTest), "but not listed");
 
         // Echo still works afterwards: the session's handlers are back.
         set.A.Role = GatewayRole.Echo;
-        int writes = t.Writes.Count;
+        int writes = t.WrittenBlocks.Count;
         t.InjectFrame(DataFrame(0x01, 12, 9));
-        Assert.That(WaitUntil(() => t.Writes.Count > writes), Is.True);
+        Assert.That(WaitUntil(() => t.WrittenBlocks.Count > writes), Is.True);
         set.A.Role = GatewayRole.Console;   // end the echo storm the fake's loopback makes
     }
 
@@ -282,7 +361,7 @@ public sealed class GatewaySessionTests
         set.A.Connect(t);
 
         Assert.That(set.A.State, Is.EqualTo(GatewaySessionState.FramesOnly));
-        Assert.That(t.Writes.Count, Is.EqualTo(0), "no HELLO went out onto the frames-only link");
+        Assert.That(t.WrittenBlocks.Count, Is.EqualTo(0), "no HELLO went out onto the frames-only link");
         byte[] frame = DataFrame(0x01, 20, 12);
         t.InjectFrame(frame);
         Assert.That(WaitUntil(() => set.A.Frames.Total > 0), Is.True);
@@ -291,10 +370,10 @@ public sealed class GatewaySessionTests
 
         string reply = await set.A.SendCommandAsync("STAT", FrameSource.Console);
         Assert.That(reply, Does.Contain("frames only"));
-        Assert.That(t.Writes.Count, Is.EqualTo(0), "the command was not sent either");
+        Assert.That(t.WrittenBlocks.Count, Is.EqualTo(0), "the command was not sent either");
 
         Assert.That(set.A.SendRawFrame(new byte[] { 0x01, 0x3F }, true, FrameSource.Console), Is.True);
-        Assert.That(t.Writes.Count, Is.EqualTo(1), "raw frames do go out");
+        Assert.That(t.WrittenBlocks.Count, Is.EqualTo(1), "raw frames do go out");
     }
 
     [Test]

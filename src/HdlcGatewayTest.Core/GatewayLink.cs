@@ -44,7 +44,19 @@ public sealed class GatewayLink : IDisposable
         Channel = new GatewayChannel(transport.Write);
         Console = new GatewayConsole(Channel);
         Text = new TextConsole(transport);
+        Transport.Faulted += OnFaulted;
     }
+
+    /// <summary>
+    /// The error the transport reported, or null while it works. Set from the transport's
+    /// reader thread when the serial port vanishes (a board reflashed under a run, 2026-11-09)
+    /// or the TCP peer goes away; the traffic engine reads it to stop a rate at once instead
+    /// of queueing frames to a dead port for minutes and calling them lost.
+    /// </summary>
+    public Exception? Fault { get; private set; }
+
+    /// <summary>True once the transport has reported an error.</summary>
+    public bool IsFaulted => Fault != null;
 
     /// <summary>The raw byte link.</summary>
     public IGatewayTransport Transport { get; }
@@ -264,7 +276,13 @@ public sealed class GatewayLink : IDisposable
     /// <summary>Cancel pending requests and dispose the transport.</summary>
     public void Dispose()
     {
+        Transport.Faulted -= OnFaulted;
         Console.CancelAll();
         Transport.Dispose();
+    }
+
+    private void OnFaulted(Exception ex)
+    {
+        Fault ??= ex;
     }
 }

@@ -51,6 +51,12 @@ public sealed class GatewayIdentity
     /// <summary>Build date and time.</summary>
     public string Build => Get("build");
 
+    /// <summary>The chip the firmware runs on, for example ESP32-S2 or RP2040 (key "chip"; empty on older firmware).</summary>
+    public string Chip => Get("chip");
+
+    /// <summary>The board, for example "LOLIN S2 Mini" or "Raspberry Pi Pico" (key "board"; empty on older firmware).</summary>
+    public string Board => Get("board");
+
     /// <summary>Longest frame the firmware accepts, or 0 when not reported.</summary>
     public int MaxFrame => int.TryParse(Get("maxframe"), out int n) ? n : 0;
 

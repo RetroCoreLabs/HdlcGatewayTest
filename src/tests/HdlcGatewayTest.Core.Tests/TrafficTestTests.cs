@@ -69,6 +69,40 @@ public sealed class TrafficTestTests
     }
 
     [Test]
+    public void PortVanishesMidRate_StopsAtOnce_AndNamesThePort()
+    {
+        FakeTransport t = new FakeTransport { Name = "COM18" };
+        _ = new FakeGateway(t, FakeGateway.Kind.ControlFrames);
+        using GatewayLink link = new GatewayLink(t);
+        link.Open();
+        link.Probe(50, out _);
+        Recorder rec = new Recorder();
+        TrafficTestSettings settings = QuickSettings();
+        settings.SecondsPerRate = 30;
+        settings.TimeoutSeconds = 30;
+        TrafficTest test = new TrafficTest(settings, rec);
+
+        bool passed = true;
+        Thread runner = new Thread(() => passed = test.Run(link, null, CancellationToken.None));
+        runner.Start();
+        Thread.Sleep(300);
+        t.Fail(new IOException("COM18 was unplugged"));
+        bool ended = runner.Join(3000);
+
+        Assert.That(ended, Is.True, "the run must end within a few seconds of the fault, not after the rate's 30 s");
+        Assert.That(passed, Is.False);
+        Assert.That(link.IsFaulted, Is.True);
+        Assert.That(test.Results.Count, Is.EqualTo(1), "the second rate must not start on a dead port");
+        Assert.That(test.Results[0].Error, Does.Contain("COM18").And.Contain("unplugged"));
+        bool explained = false;
+        for (int i = 0; i < rec.Messages.Count; i++)
+        {
+            explained |= rec.Messages[i].Contains("COM18 failed during the rate");
+        }
+        Assert.That(explained, Is.True);
+    }
+
+    [Test]
     public void LossyLoopback_FailsWithLostFrames_AndExplainsDamage()
     {
         FakeTransport t = new FakeTransport();

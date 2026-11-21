@@ -1,0 +1,76 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HdlcGatewayTest.App.ViewModels"
+        x:Class="HdlcGatewayTest.App.Views.PaneSetupWindow"
+        x:DataType="vm:PaneSetupViewModel"
+        Title="{Binding Title}"
+        Width="560" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="16" Spacing="10">
+
+        <TextBlock Text="How this pane reaches its gateway" FontWeight="SemiBold" />
+        <StackPanel Margin="12,0,0,0" Spacing="6">
+            <DockPanel LastChildFill="True">
+                <RadioButton DockPanel.Dock="Left" Content="Serial port" IsChecked="{Binding UseSerialPort}" Width="130"
+                             ToolTip.Tip="The gateway's USB serial port (HDLCGW on the ESP32-S2, RC422Dev on the Pico)." />
+                <ComboBox Width="140" ItemsSource="{Binding SerialPorts}" SelectedItem="{Binding SelectedSerialPort}"
+                          IsEnabled="{Binding UseSerialPort}" HorizontalAlignment="Left" />
+            </DockPanel>
+            <DockPanel LastChildFill="True">
+                <RadioButton DockPanel.Dock="Left" Content="TCP client" IsChecked="{Binding UseTcpClient}" Width="130"
+                             ToolTip.Tip="Connect out to a gateway in WiFi mode (hdlcgw.local, port 1362) or to an emulator that listens, for example nd100x. The stream is plain byte-stuffed HDLC frames; firmware commands are not available on it." />
+                <StackPanel Orientation="Horizontal" Spacing="6" IsEnabled="{Binding UseTcpClient}">
+                    <TextBlock Text="host" VerticalAlignment="Center" />
+                    <TextBox Width="200" Text="{Binding TcpHost}" PlaceholderText="hdlcgw.local" />
+                    <TextBlock Text="port" VerticalAlignment="Center" />
+                    <NumericUpDown Width="110" Value="{Binding TcpClientPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" ShowButtonSpinner="False" />
+                </StackPanel>
+            </DockPanel>
+            <CheckBox Content="Legacy text console (gateway without control frames)" IsChecked="{Binding UseTextConsole}"
+                      ToolTip.Tip="Tick for a firmware that has no command frames: the probe then also tries ESC ESC ESC. Off: HELLO frames only, never an ESC byte." />
+        </StackPanel>
+
+        <TextBlock Text="Line" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,0,0,0">
+            <TextBlock Text="Speed (bit/s)" VerticalAlignment="Center" />
+            <AutoCompleteBox Width="120" ItemsSource="{Binding BaudRates}" Text="{Binding Baud}" MinimumPrefixLength="0"
+                             ToolTip.Tip="The gateway's transmit clock, set with BAUD when you press OK while connected, and remembered as the default." />
+            <TextBlock Text="Firmware log" VerticalAlignment="Center" Margin="16,0,0,0" />
+            <ComboBox Width="110" ItemsSource="{Binding LogLevels}" SelectedItem="{Binding LogLevel}"
+                      ToolTip.Tip="How much the firmware logs to the console while traffic flows. Needs a control-frame firmware with a log." />
+        </StackPanel>
+
+        <TextBlock Text="What the pane does with frames from the line" FontWeight="SemiBold" />
+        <StackPanel Margin="12,0,0,0" Spacing="6">
+            <ComboBox Width="260" ItemsSource="{Binding Roles}" SelectedItem="{Binding SelectedRole}" HorizontalAlignment="Left" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                       Text="Console: list them and talk to the firmware. Free: list them and paste hex frames to send. Echo: send every received frame straight back. Bridge: forward to the other pane's gateway and back. TCP server: forward between the line and an emulator connected to the port below. A running traffic test pauses the role." />
+        </StackPanel>
+
+        <TextBlock Text="TCP server" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,0,0,0">
+            <CheckBox Content="Listen for an emulator on port" IsChecked="{Binding TcpServerEnabled}"
+                      ToolTip.Tip="nd100x or a RetroCore emulator connects here; its byte-stuffed frames go onto this gateway's line and the line's frames go back. nd100x: --hdlc=1:&lt;this PC&gt;:&lt;port&gt;. Each pane needs its own port; A starts at 1362, B at 1363." />
+            <NumericUpDown Width="110" Value="{Binding TcpServerPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" ShowButtonSpinner="False"
+                           IsEnabled="{Binding TcpServerEnabled}" />
+        </StackPanel>
+
+        <TextBlock Text="TCP client (forward to an emulator)" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,0,0,0">
+            <CheckBox Content="Connect out to a server at" IsChecked="{Binding TcpForwardEnabled}"
+                      ToolTip.Tip="The emulator (for example 192.168.1.180, port 10362) listens; this tool dials it and forwards every frame of this pane's gateway to it and back, unchanged. Not together with the TCP server above." />
+            <TextBox Width="170" Text="{Binding TcpForwardHost}" PlaceholderText="192.168.1.180" IsEnabled="{Binding TcpForwardEnabled}" />
+            <TextBlock Text=":" VerticalAlignment="Center" />
+            <NumericUpDown Width="110" Value="{Binding TcpForwardPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" ShowButtonSpinner="False"
+                           IsEnabled="{Binding TcpForwardEnabled}" />
+        </StackPanel>
+
+        <TextBlock Text="{Binding Error}" Foreground="OrangeRed" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+            <Button Content="Cancel" Width="90" Click="OnCancel" />
+            <Button Content="OK" Width="90" Click="OnOk" IsDefault="True"
+                    ToolTip.Tip="Apply: connect (or reconnect if the port changed), set the role, start or stop the TCP server, send BAUD and the log level when connected." />
+        </StackPanel>
+    </StackPanel>
+</Window>

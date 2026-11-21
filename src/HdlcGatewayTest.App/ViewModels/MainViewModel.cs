@@ -24,7 +24,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _mcpEnabled;
     private int _mcpPort;
     private string _mcpStatus = "MCP off";
-    private bool _showMcpLog;
+    private int _mcpClients;
 
     /// <summary>
     /// Create the window's model.
@@ -61,14 +61,26 @@ public sealed class MainViewModel : ObservableObject
         _mcpPort = startup.McpPort != 0 ? startup.McpPort : settings.McpPort;
         _mcpLog.Added += entry => _ui.Post(() =>
         {
-            McpLog.Add(entry.Time.ToString("HH:mm:ss.fff") + " " + (entry.IsResult ? (entry.IsError ? "ERR " : "ok  ") : "call")
-                       + " " + entry.Tool + " " + entry.Text);
+            McpLog.Add(FormatMcpEntry(entry));
             if (McpLog.Count > 500)
             {
                 McpLog.RemoveAt(0);
             }
         });
-        ToggleMcpLogCommand = new RelayCommand(() => ShowMcpLog = !ShowMcpLog);
+        ClearMcpLogCommand = new RelayCommand(McpLog.Clear);
+    }
+
+    /// <summary>
+    /// One log line: time, kind (call, ok, ERR, or blank for a server event), tool, text.
+    /// </summary>
+    /// <param name="entry">The entry.</param>
+    /// <returns>The line.</returns>
+    public static string FormatMcpEntry(McpTrafficEntry entry)
+    {
+        string kind = entry.IsResult ? (entry.IsError ? "ERR " : "ok  ")
+            : entry.Tool == McpTrafficLog.ServerTool ? "    "
+            : "call";
+        return entry.Time.ToString("HH:mm:ss.fff") + " " + kind + " " + entry.Tool + " " + entry.Text;
     }
 
     /// <summary>The sessions.</summary>
@@ -119,6 +131,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _mcpPort, value) && value > 0 && value < 65536)
             {
+                Raise(nameof(McpAddCommand));
                 _settings.McpPort = value;
                 _settings.Save();
             }
@@ -132,18 +145,30 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _mcpStatus, value);
     }
 
-    /// <summary>Show the MCP call log strip.</summary>
-    public bool ShowMcpLog
+    /// <summary>MCP clients connected: TCP connections open to the server, 0 while it is off.</summary>
+    public int McpClients
     {
-        get => _showMcpLog;
-        set => SetProperty(ref _showMcpLog, value);
+        get => _mcpClients;
+        private set
+        {
+            if (SetProperty(ref _mcpClients, value))
+            {
+                Raise(nameof(McpClientsText));
+            }
+        }
     }
+
+    /// <summary>"1 client connected", for the tab header area.</summary>
+    public string McpClientsText => _mcpClients == 1 ? "1 client connected" : _mcpClients + " clients connected";
+
+    /// <summary>The command that adds this server to Claude Code, for copying.</summary>
+    public string McpAddCommand => "claude mcp add --transport http hdlcgw http://127.0.0.1:" + _mcpPort + "/mcp";
 
     /// <summary>MCP calls and results, newest last.</summary>
     public ObservableCollection<string> McpLog { get; } = new ObservableCollection<string>();
 
-    /// <summary>Show or hide the MCP log.</summary>
-    public RelayCommand ToggleMcpLogCommand { get; }
+    /// <summary>Empty the MCP log list.</summary>
+    public RelayCommand ClearMcpLogCommand { get; }
 
     /// <summary>Start the pump thread and, when asked, the MCP server.</summary>
     public void Start()
@@ -187,6 +212,7 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             _mcp = await McpServerHost.StartAsync(tools, _mcpPort).ConfigureAwait(false);
+            _mcp.ActiveConnectionsChanged += count => _ui.Post(() => McpClients = count);
             _ui.Post(() => McpStatus = "MCP at " + _mcp!.Url);
         }
         catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is System.Net.Sockets.SocketException)
@@ -203,6 +229,10 @@ public sealed class MainViewModel : ObservableObject
         {
             await mcp.DisposeAsync().ConfigureAwait(false);
         }
-        _ui.Post(() => McpStatus = "MCP off");
+        _ui.Post(() =>
+        {
+            McpStatus = "MCP off";
+            McpClients = 0;
+        });
     }
 }

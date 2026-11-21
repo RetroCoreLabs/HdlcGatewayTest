@@ -53,18 +53,39 @@ public sealed class TrafficTest
     /// (<see cref="GatewayLink.Probe"/>) unless <see cref="TrafficTestSettings.NoBaud"/> is set.
     /// </summary>
     /// <param name="a">Gateway A.</param>
-    /// <param name="b">Gateway B, or null for loopback on A.</param>
+    /// <param name="b">Gateway B, or null for loopback on <paramref name="a"/>.</param>
     /// <param name="cancel">Set to stop; the current rate finishes early and its result is kept.</param>
+    /// <param name="loopbackName">The direction label for loopback: "A->A" or "B->B".</param>
     /// <returns><see cref="Passed"/>.</returns>
-    public bool Run(GatewayLink a, GatewayLink? b, CancellationToken cancel)
+    /// <remarks>
+    /// With two links the directions follow <see cref="TrafficTestSettings.Path"/>: both at once,
+    /// or one way only (RC422Dev's maximum-stream test, 2026-11-09: nothing coming back the
+    /// other way). A loopback path with two links means both ways, for the command-line tool,
+    /// which never sets the path.
+    /// </remarks>
+    public bool Run(GatewayLink a, GatewayLink? b, CancellationToken cancel, string loopbackName = "A->A")
     {
-        TrafficDirection[] directions = b == null
-            ? new[] { new TrafficDirection("A->A", a, a, 0xA1, _settings.FrameLength, _settings.WindowBytes) }
-            : new[]
+        TrafficDirection[] directions;
+        if (b == null)
+        {
+            directions = new[] { new TrafficDirection(loopbackName, a, a, 0xA1, _settings.FrameLength, _settings.WindowBytes) };
+        }
+        else if (_settings.Path == TrafficTestPath.OneWayAtoB)
+        {
+            directions = new[] { new TrafficDirection("A->B", a, b, 0xA1, _settings.FrameLength, _settings.WindowBytes) };
+        }
+        else if (_settings.Path == TrafficTestPath.OneWayBtoA)
+        {
+            directions = new[] { new TrafficDirection("B->A", b, a, 0xB2, _settings.FrameLength, _settings.WindowBytes) };
+        }
+        else
+        {
+            directions = new[]
             {
                 new TrafficDirection("A->B", a, b, 0xA1, _settings.FrameLength, _settings.WindowBytes),
                 new TrafficDirection("B->A", b, a, 0xB2, _settings.FrameLength, _settings.WindowBytes),
             };
+        }
         for (int d = 0; d < directions.Length; d++)
         {
             directions[d].VerboseFrames = _settings.VerboseFrames;
@@ -90,7 +111,11 @@ public sealed class TrafficTest
             {
                 directions[d].TimeoutSeconds = timeout;
             }
-            RunRate(rate, links, directions, timeout, cancel);
+            if (!RunRate(rate, links, directions, timeout, cancel))
+            {
+                // A port is gone; no later rate can run on it either.
+                break;
+            }
         }
 
         for (int d = 0; d < directions.Length; d++)
@@ -127,7 +152,17 @@ public sealed class TrafficTest
         return ok;
     }
 
-    private void RunRate(uint rate, GatewayLink[] links, TrafficDirection[] directions, int timeoutSeconds,
+    /// <summary>
+    /// Run one rate: send for the configured time, then drain.
+    /// </summary>
+    /// <returns>
+    /// False when a link's transport failed during the rate (the port vanished, the TCP peer
+    /// went away): the rate's result carries the error and the run must not go on. Bench
+    /// 2026-11-09: a Pico reflashed under a run took COM18 away, the engine kept queueing
+    /// frames to the dead port for four minutes, counted them lost and the drain never ended
+    /// while the queue kept changing.
+    /// </returns>
+    private bool RunRate(uint rate, GatewayLink[] links, TrafficDirection[] directions, int timeoutSeconds,
                          CancellationToken cancel)
     {
         for (int d = 0; d < directions.Length; d++)
@@ -142,12 +177,25 @@ public sealed class TrafficTest
                               + " s to cross the line.");
         }
 
+        // The PC side's own behaviour during this rate, for the far ends' questions (HDLCGW
+        // 2026-11-09: how long does the PC leave the gateway's output unfetched, and does the
+        // garbage collector pause the reader?): the transports' read statistics start over here
+        // and the GC pause total is remembered; both are reported after the drain.
+        for (int l = 0; l < links.Length; l++)
+        {
+            links[l].Transport.ResetReadStatistics();
+        }
+        TimeSpan gcPauseBefore = GC.GetTotalPauseDuration();
+        int gen0Before = GC.CollectionCount(0);
+        int gen2Before = GC.CollectionCount(2);
+
         long start = Stopwatch.GetTimestamp();
         long end = start + (Stopwatch.Frequency * _settings.SecondsPerRate);
         long nextStatus = start + Stopwatch.Frequency;
         long now = start;
 
-        while (now < end && !cancel.IsCancellationRequested)
+        GatewayLink? faulted = null;
+        while (now < end && !cancel.IsCancellationRequested && (faulted = FaultedLink(links)) == null)
         {
             bool busy = false;
             for (int l = 0; l < links.Length; l++)
@@ -173,15 +221,26 @@ public sealed class TrafficTest
             now = Stopwatch.GetTimestamp();
         }
 
-        // Drain: let what is in flight come home, up to the timeout.
+        // Drain: let what is in flight come home, up to the timeout. While a transport's write
+        // queue is still shrinking the far end is still taking bytes, so the deadline moves with
+        // that progress: those frames are neither home nor lost yet. Whatever is still queued
+        // when the drain ends is written off as unsent, never as lost.
         long drainEnd = now + (Stopwatch.Frequency * timeoutSeconds);
+        long lastQueued = -1;
         bool pending = true;
-        while (pending && now < drainEnd)
+        while (pending && now < drainEnd && faulted == null && (faulted = FaultedLink(links)) == null)
         {
             pending = false;
+            long queued = 0;
             for (int l = 0; l < links.Length; l++)
             {
                 links[l].Pump();
+                queued += links[l].Transport.QueuedWriteBytes;
+            }
+            if (queued > 0 && queued != lastQueued)
+            {
+                lastQueued = queued;
+                drainEnd = now + (Stopwatch.Frequency * timeoutSeconds);
             }
             for (int d = 0; d < directions.Length; d++)
             {
@@ -193,6 +252,7 @@ public sealed class TrafficTest
         }
         for (int d = 0; d < directions.Length; d++)
         {
+            directions[d].WriteOffQueued();
             _ = directions[d].Pump(now + (Stopwatch.Frequency * timeoutSeconds), false);
             // Throughput is measured over sending plus drain: frames that arrive during the
             // drain were on the line during it, so counting them against the sending time
@@ -200,10 +260,47 @@ public sealed class TrafficTest
             directions[d].Statistics.ElapsedTicks = now - start;
         }
 
+        for (int l = 0; l < links.Length; l++)
+        {
+            string reads = links[l].Transport.DescribeReads();
+            if (reads.Length > 0)
+            {
+                _observer.Message("PC side, " + links[l].Transport.Name + " during this rate: " + reads);
+            }
+        }
+        _observer.Message("PC side, GC during this rate: pauses " + (GC.GetTotalPauseDuration() - gcPauseBefore).TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)
+                          + " ms in all, gen0 collections " + (GC.CollectionCount(0) - gen0Before)
+                          + ", gen2 collections " + (GC.CollectionCount(2) - gen2Before));
+
         _observer.Status(rate, directions, now - start, true);
-        RateResult result = new RateResult(rate, directions, null);
+        string? error = null;
+        if (faulted != null)
+        {
+            error = faulted.Name + " failed during the rate: " + (faulted.Fault?.Message ?? "port gone")
+                    + " (frames still queued are unsent; frames on the wire without an answer are lost)";
+            _observer.Message(error);
+        }
+        RateResult result = new RateResult(rate, directions, error);
         _results.Add(result);
         _observer.RateFinished(result);
+        return faulted == null;
+    }
+
+    /// <summary>
+    /// The first link whose transport has reported an error, or null.
+    /// </summary>
+    /// <param name="links">The links in use.</param>
+    /// <returns>The failed link, or null while all work.</returns>
+    private static GatewayLink? FaultedLink(GatewayLink[] links)
+    {
+        for (int l = 0; l < links.Length; l++)
+        {
+            if (links[l].IsFaulted)
+            {
+                return links[l];
+            }
+        }
+        return null;
     }
 
     /// <summary>

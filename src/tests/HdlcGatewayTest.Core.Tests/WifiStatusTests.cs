@@ -88,7 +88,9 @@ public sealed class WifiStatusTests
         Assert.That(s16!.Describe("RC422Dev"), Does.Contain("usb_write_max_us=7"));
         string esp = s.Describe("HDLCGW");
         Assert.That(esp, Does.Contain("line_rx_bytes=3"), "the same wire position means something else on HDLCGW");
-        Assert.That(GatewayStatistics.TryParse(new byte[30 * 4], out s), Is.True);
-        Assert.That(s!.Describe(null), Does.Contain("field_29=0"));
+        // A field past every known name falls back to its number (HDLCGW names 0..32 today).
+        Assert.That(GatewayStatistics.TryParse(new byte[40 * 4], out s), Is.True);
+        Assert.That(s!.Describe(null), Does.Contain("internal_heap_low=0"));
+        Assert.That(s!.Describe(null), Does.Contain("field_39=0"));
     }
 }

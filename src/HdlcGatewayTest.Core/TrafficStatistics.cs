@@ -40,6 +40,14 @@ public sealed class TrafficStatistics
     /// <summary>Received frames older than anything pending (duplicates or already written off).</summary>
     public long FramesLate;
 
+    /// <summary>
+    /// Frames handed to the transport that were still waiting in the PC's write queue when the
+    /// run ended (the far end took bytes slower than the window supplied them). Not lost: they
+    /// never left the PC. Bench 2026-11-09: 3519 of 5614 frames at 983000 toward a Pico that
+    /// read USB at 35 kbit/s.
+    /// </summary>
+    public long FramesUnsent;
+
     /// <summary>Frames the byte-frame decoder dropped (too long, or ended inside an escape).</summary>
     public long DecoderDropped;
 
@@ -55,7 +63,7 @@ public sealed class TrafficStatistics
     /// <summary>True when nothing went wrong and at least one frame made it.</summary>
     public bool Passed =>
         FramesOk > 0 && FramesBadFcs == 0 && FramesCorrupt == 0 && FramesLost == 0
-        && DecoderDropped == 0 && FramesOk == FramesSent;
+        && DecoderDropped == 0 && FramesOk == FramesSent - FramesUnsent;
 
     /// <summary>Good frame bytes per second over the sending phase, in kilobit per second.</summary>
     public double KilobitPerSecond
@@ -105,6 +113,7 @@ public sealed class TrafficStatistics
             FramesCorrupt = FramesCorrupt,
             FramesLost = FramesLost,
             FramesLate = FramesLate,
+            FramesUnsent = FramesUnsent,
             DecoderDropped = DecoderDropped,
             RoundTripTicksTotal = RoundTripTicksTotal,
             RoundTripTicksMax = RoundTripTicksMax,
@@ -125,6 +134,7 @@ public sealed class TrafficStatistics
         FramesCorrupt = 0;
         FramesLost = 0;
         FramesLate = 0;
+        FramesUnsent = 0;
         DecoderDropped = 0;
         RoundTripTicksTotal = 0;
         RoundTripTicksMax = 0;

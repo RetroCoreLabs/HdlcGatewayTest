@@ -101,6 +101,16 @@ public sealed class GatewayStatistics
         "received_bytes", "line_rx_bytes", "idle_dropped", "fifo_overruns", "dma_errors", "ring_overflow",
         "words_peeked", "usb_frames_dropped", "short_runs_ignored", "control_frames_dropped",
         "frames_to_peer", "bytes_to_peer", "frames_from_peer", "dropped_to_peer", "peer_connects", "wifi_connects",
+        // Fields 24..26, ESP build 2026-11-09 00:05:32 (HDLCGW session): what the transmitter clocked and
+        // what the host sent, to tell a starved line from a slow feed.
+        "line_tx_data_bytes", "line_tx_idle_bytes", "usb_rx_bytes",
+        // Fields 27, 28, ESP build 2026-11-09 ~01:00: USB send pieces whose untaken tail was written again
+        // after the core's 250 ms write timeout (before, the tail was lost and the PC saw a bad FCS),
+        // and output thrown away at a frame boundary because no host had the port open.
+        "usb_short_writes_resumed", "usb_flushes_port_closed",
+        // Fields 29..32, ESP build 2026-11-09 ~01:10 (rings moved to 4 KB internal RAM): high water
+        // of the line RX, line TX and USB TX rings in bytes, and the lowest free internal heap seen.
+        "line_rx_ring_high_water", "line_tx_ring_high_water", "usb_tx_ring_high_water", "internal_heap_low",
     };
 
     private static readonly string[] s_rc422devNames =

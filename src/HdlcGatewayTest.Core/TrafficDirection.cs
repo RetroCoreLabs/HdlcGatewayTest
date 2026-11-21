@@ -101,7 +101,8 @@ public sealed class TrafficDirection
             _lastDecoderDropped = dropped;
         }
 
-        int expired = _pending.ExpireSentBefore(nowTicks - _timeoutTicks);
+        // Frames still in the PC's write queue have not been on the line: they cannot be lost yet.
+        int expired = _pending.ExpireSentBefore(nowTicks - _timeoutTicks, _source.Transport.QueuedWriteBytes);
         Statistics.FramesLost += expired;
 
         if (!sending)
@@ -127,6 +128,24 @@ public sealed class TrafficDirection
             busy = true;
         }
         return busy;
+    }
+
+    /// <summary>Bytes the source transport still holds unwritten.</summary>
+    public long QueuedWriteBytes => _source.Transport.QueuedWriteBytes;
+
+    /// <summary>
+    /// End of the drain: frames whose bytes are still in the source transport's write queue
+    /// never left the PC. Take them out of the pending list and count them as unsent, so the
+    /// final expiry does not call them lost.
+    /// </summary>
+    public void WriteOffQueued()
+    {
+        long queued = _source.Transport.QueuedWriteBytes;
+        if (queued <= 0)
+        {
+            return;
+        }
+        Statistics.FramesUnsent += _pending.RemoveNewestWithin(queued);
     }
 
     /// <summary>Bytes the frame takes on the wire: flags plus escapes.</summary>
