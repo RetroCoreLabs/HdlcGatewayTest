@@ -52,6 +52,66 @@ Tick **MCP server** (remembered, default off) or start with `--mcp [port]` for o
 client count is the number of connections open to the MCP port: a client keeps its connection
 between calls and closes it after about two minutes of silence.
 
+## Screenshots
+
+The pictures are the real window, drawn off screen by the screenshot test against fake gateways
+that answer HELLO like the bench boards: HDLCGW 0.3.5 on an ESP32-S2 as COM10, RC422Dev 0.2.0 on
+a Pico as COM18. The fakes loop every frame straight back and answer only a few commands, so the
+command replies are short and the traffic test speed is not a line speed. Make them again after
+a change to the window, from `src`:
+
+```
+dotnet test tests/HdlcGatewayTest.App.Tests -nodeReuse:false --filter "TestCategory=Screenshots"
+```
+
+### Just started
+
+Nothing connected. Each pane has its Setup button, Connect, the console and the frame list.
+
+![Just started](../docs/screenshots/01-start-light.png)
+
+Dark: [01-start-dark.png](../docs/screenshots/01-start-dark.png)
+
+### Both gateways connected
+
+Pane A on the ESP, pane B on the Pico. Both answered HELLO, so the badge says CONTROL FRAMES; a STAT on A and a BAUD on B went as command frames. The Version tab shows what each gateway reported.
+
+![Both gateways connected](../docs/screenshots/02-connected-version-light.png)
+
+Dark: [02-connected-version-dark.png](../docs/screenshots/02-connected-version-dark.png)
+
+### Free role: sending frames by hand
+
+Pane A in the Free role: frames typed in hex (SABM, UA, an I-frame, RR) go out with an FCS added and come back looped. Clicking a frame decodes it on the right.
+
+![Free role: sending frames by hand](../docs/screenshots/03-free-role-frames-light.png)
+
+Dark: [03-free-role-frames-dark.png](../docs/screenshots/03-free-role-frames-dark.png)
+
+### Pane setup window
+
+How the pane reaches its gateway (serial port or TCP client), the line speed, the firmware log level, the role, and the TCP server and TCP client for an emulator.
+
+![Pane setup window](../docs/screenshots/04-pane-setup-light.png)
+
+Dark: [04-pane-setup-dark.png](../docs/screenshots/04-pane-setup-dark.png)
+
+### Traffic test, finished
+
+Gateway A alone with its line looped back, 1024-byte frames at 307200 for 3 seconds: PASS. The result table under the PASS line scrolls inside the tab.
+
+![Traffic test, finished](../docs/screenshots/05-traffic-test-light.png)
+
+Dark: [05-traffic-test-dark.png](../docs/screenshots/05-traffic-test-dark.png)
+
+### MCP tab
+
+The MCP server switch and port, how many clients are connected, and the line that adds the server to Claude Code.
+
+![MCP tab](../docs/screenshots/06-mcp-tab-light.png)
+
+Dark: [06-mcp-tab-dark.png](../docs/screenshots/06-mcp-tab-dark.png)
+
 ## Settings
 
 `%APPDATA%\HdlcGatewayTool\settings.json`: MCP on/off and port, the last endpoint and rate of

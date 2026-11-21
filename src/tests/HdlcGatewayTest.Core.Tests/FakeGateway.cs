@@ -65,6 +65,13 @@ public sealed class FakeGateway
     /// <summary>Data frames that were forwarded (looped back).</summary>
     public long DataFrames => _dataFrames;
 
+    /// <summary>
+    /// The HELLO reply text, key=value lines. The screenshot test sets one that names a real
+    /// firmware so the pictures read like the bench.
+    /// </summary>
+    public string HelloText { get; set; } =
+        "name=FAKEGW\nversion=0.2.0\nbuild=test\nchip=FAKE1\nboard=Test bench\nmaxframe=1024\ncaps=cmd,log,stat\n";
+
     /// <summary>Current transmit clock, set by BAUD.</summary>
     public uint Baud { get; private set; } = 38400;
 
@@ -151,7 +158,7 @@ public sealed class FakeGateway
         {
             case ControlFrameType.Hello:
             {
-                string text = "name=FAKEGW\nversion=0.2.0\nbuild=test\nchip=FAKE1\nboard=Test bench\nmaxframe=1024\ncaps=cmd,log,stat\n";
+                string text = HelloText;
                 byte[] reply = new byte[1 + text.Length];
                 reply[0] = 1;
                 Encoding.ASCII.GetBytes(text, 0, text.Length, reply, 1);
