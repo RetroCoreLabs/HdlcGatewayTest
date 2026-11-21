@@ -1,0 +1,107 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [
+            "HdlcGatewayTest.Core/HdlcGatewayTest.Core.csproj",
+            "HdlcGatewayTest.Serial/HdlcGatewayTest.Serial.csproj",
+            "HdlcGatewayTest.Gateway/HdlcGatewayTest.Gateway.csproj",
+            "HdlcGatewayTest.Mcp/HdlcGatewayTest.Mcp.csproj",
+            "HdlcGatewayTest.Loopback/HdlcGatewayTest.Loopback.csproj",
+            "HdlcGatewayTest.App/HdlcGatewayTest.App.csproj"
+          ],
+          "src": ".."
+        }
+      ],
+      "dest": "api",
+      "filter": "filterConfig.yml",
+      "includePrivateMembers": false,
+      "disableGitFeatures": false,
+      "disableDefaultFilter": false,
+      "noRestore": false,
+      "namespaceLayout": "nested",
+      "memberLayout": "samePage",
+      "allowCompilationErrors": false,
+      "outputFormat": "mref"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "api/**.yml",
+          "api/index.md"
+        ]
+      },
+      {
+        "files": [
+          "*.md",
+          "toc.yml"
+        ],
+        "exclude": [
+          "README.md"
+        ]
+      },
+      {
+        "files": [
+          "HdlcGatewayTest.App/README.md",
+          "HdlcGatewayTest.Loopback/README.md"
+        ],
+        "src": ".."
+      },
+      {
+        "files": [
+          "README.md",
+          ".github/CONTRIBUTING.md",
+          ".github/SECURITY.md"
+        ],
+        "src": "../.."
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "docs/screenshots/*.png"
+        ],
+        "src": ".."
+      },
+      {
+        "files": [
+          "LICENSE"
+        ],
+        "src": "../.."
+      },
+      {
+        "files": [
+          "icon.svg"
+        ]
+      }
+    ],
+    "output": "_site",
+    "globalMetadata": {
+      "_appName": "HdlcGatewayTest",
+      "_appTitle": "HdlcGatewayTest",
+      "_appLogoPath": "icon.svg",
+      "_appFaviconPath": "icon.svg",
+      "_appFooter": "Copyright (c) 1985-2026 Ronny Hansen - MIT License - RetroCore Labs - <a href=\"https://github.com/RetroCoreLabs/HdlcGatewayTest\">Source on GitHub</a>",
+      "_enableSearch": true,
+      "_disableContribution": false,
+      "_gitContribute": {
+        "repo": "https://github.com/RetroCoreLabs/HdlcGatewayTest",
+        "branch": "main"
+      }
+    },
+    "template": [
+      "default",
+      "modern",
+      "template"
+    ],
+    "postProcessors": [
+      "ExtractSearchIndex"
+    ],
+    "keepFileLink": false,
+    "disableGitFeatures": false
+  }
+}

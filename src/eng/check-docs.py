@@ -67,6 +67,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 
 LINK = re.compile(r"(!?)\[([^\]]*)\]\(([^)]+)\)")
@@ -98,9 +99,9 @@ EMOJI = re.compile(
     "["
     "\U0001F300-\U0001FAFF"   # pictographs, emoticons, symbols, supplemental
     "\U0001F000-\U0001F2FF"   # mahjong through enclosed alphanumeric supplement
-    "☀-➿"           # miscellaneous symbols and dingbats
-    "️"                  # variation selector 16, the "render as emoji" marker
-    "⬀-⯿"           # miscellaneous symbols and arrows (stars, etc.)
+    "\u2600-\u27bf"           # miscellaneous symbols and dingbats
+    "\ufe0f"                  # variation selector 16, the "render as emoji" marker
+    "\u2b00-\u2bff"           # miscellaneous symbols and arrows (stars, etc.)
     "]")
 
 # Directories holding generated or third-party material rather than our documentation.
@@ -198,9 +199,37 @@ def submodule_paths(root):
     return out
 
 
+def ignored_paths(root):
+    """Paths git ignores (.gitignore), as repo-relative paths. Folders end in a slash.
+
+    An ignored file is never committed, so it never goes public and is never this
+    repository's documentation. Build output is the usual case: an ESPHome repository
+    keeps the whole ESP-IDF tree under .esphome/, whose markdown carries third-party
+    Mermaid diagrams, and reporting those made a clean repository fail with 12 findings
+    nobody here could or should fix.
+
+    UNTRACKED files that are NOT ignored are still checked - they are one `git add` away
+    from being published. If git is missing or this is not a git work tree, nothing is
+    skipped, so the check can only get stricter, never quieter.
+    """
+    try:
+        raw = subprocess.check_output(
+            ["git", "-C", root, "ls-files", "--others", "--ignored", "--exclude-standard",
+             "--directory", "-z"],
+            stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    out = []
+    for p in raw.decode("utf-8", "replace").split("\0"):
+        if p:
+            out.append("/" + p.replace("\\", "/"))
+    return out
+
+
 def markdown_files(root):
     out = []
-    skip_dirs = tuple(SKIP) + tuple(submodule_paths(root))
+    ignored = tuple(ignored_paths(root))
+    skip_dirs = tuple(SKIP) + tuple(submodule_paths(root)) + ignored
     for base, dirs, files in os.walk(root):
         for name in files:
             if not name.endswith(".md"):
@@ -383,6 +412,11 @@ def check_mermaid(root, path, report, config):
             used = set()
             for m in re.finditer(r"^\s*class\s+([\w,\s]+?)\s+(\w+)\s*;?\s*$", body, re.M):
                 used.add(m.group(2))
+            # A node can also take its class inline: `A["text"]:::role`, and the same
+            # after an edge (`A --> B:::role`). Diagrams that only use this form are
+            # correct; counting `class` lines alone reported every classDef in them dead.
+            for m in re.finditer(r":::(\w+)", body):
+                used.add(m.group(1))
             for role in sorted(used - defined):
                 add(report, config, rel, "MERMAID",
                     where + "class uses undefined role '" + role + "'")
@@ -543,6 +577,16 @@ def application_folders(root, config):
 # ---------------------------------------------------------------------------- main
 
 def main():
+    # A finding quotes the offending line, and an EMOJI-HEADING finding quotes an emoji. On a
+    # Windows console the default output encoding is cp1252, which cannot write one, so the
+    # checker died with UnicodeEncodeError while PRINTING its own report - after doing all the
+    # work, and before the summary line. Measured 28 September 2026 on RetroTerm. Write UTF-8
+    # and replace what the console still cannot show, rather than crash.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass  # a stream without reconfigure (older Python, or redirected oddly): leave it
+
     root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else ".")
     if not os.path.isdir(root):
         print("not a directory: " + root)

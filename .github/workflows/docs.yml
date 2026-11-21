@@ -1,0 +1,64 @@
+# Build the documentation site and publish it to GitHub Pages
+# (https://retrocorelabs.github.io/HdlcGatewayTest/) on every push to main that touches src/.
+# DocFX reads the C# comments from the six program projects (not the tests) and the READMEs;
+# src/docfx/ holds the settings. Warnings fail the build: a warning is a broken link on the site.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'README.md'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build DocFX site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: src/global.json
+
+      - uses: actions/configure-pages@v6
+
+      - name: Install DocFX
+        run: dotnet tool install -g docfx
+
+      - name: Build site
+        working-directory: src
+        run: docfx docfx/docfx.json --warningsAsErrors
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: src/docfx/_site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5

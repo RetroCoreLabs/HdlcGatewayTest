@@ -11,7 +11,7 @@ of that over MCP.
 [![licence](https://img.shields.io/github/license/RetroCoreLabs/HdlcGatewayTest)](LICENSE)
 [![downloads](https://img.shields.io/github/downloads/RetroCoreLabs/HdlcGatewayTest/total)](https://github.com/RetroCoreLabs/HdlcGatewayTest/releases)
 
-**Download** · [What it does](#what-you-can-use-it-for) · [Quick start](#quick-start) · [MCP](#driving-the-tool-from-an-ai-mcp) · [Building](#building-from-source) · [About HDLC](#about-hdlc-and-these-gateways)
+**Download** · [Docs site](https://retrocorelabs.github.io/HdlcGatewayTest/) · [What it does](#what-you-can-use-it-for) · [Quick start](#quick-start) · [MCP](#driving-the-tool-from-an-ai-mcp) · [Building](#building-from-source) · [About HDLC](#about-hdlc-and-these-gateways)
 
 **Latest build for Windows:** https://github.com/RetroCoreLabs/HdlcGatewayTest/releases/latest
 
@@ -32,8 +32,8 @@ frames, talk to the firmware while they flow, and let the nd100x emulator use a 
 
 | Application | What it is | README |
 |---|---|---|
-| `hdlc-gateway-tool` | The window: two panes (one gateway each) with a console, a frame list with decode, roles (echo, bridge, TCP listen), the traffic test and an MCP server | [src/HdlcGatewayTest.App/README.md](src/HdlcGatewayTest.App/README.md) |
-| `hdlc-loopback` | The command-line tool: the traffic test for scripts and CI logs, single console commands, and the same MCP server without a window | [src/HdlcGatewayTest.Loopback/README.md](src/HdlcGatewayTest.Loopback/README.md) |
+| `hdlc-gateway-tool` | The window: two panes (one gateway each) with a console, a frame list with decode, roles (echo, bridge, TCP listen), the traffic test and an MCP server | [src/HdlcGatewayTest.App/README.md](https://github.com/RetroCoreLabs/HdlcGatewayTest/blob/main/src/HdlcGatewayTest.App/README.md) |
+| `hdlc-loopback` | The command-line tool: the traffic test for scripts and CI logs, single console commands, and the same MCP server without a window | [src/HdlcGatewayTest.Loopback/README.md](https://github.com/RetroCoreLabs/HdlcGatewayTest/blob/main/src/HdlcGatewayTest.Loopback/README.md) |
 
 Both are built on the same libraries, so they behave alike: `HdlcGatewayTest.Core` (framing, the
 CRC, control frames, the traffic engine), `HdlcGatewayTest.Gateway` (one gateway with a role,
@@ -65,9 +65,9 @@ its frame and console logs), `HdlcGatewayTest.Serial` (the COM port) and `HdlcGa
 
 ## Status
 
-Version 0.2.0.
+Version 0.3.0 (`VersionPrefix` in `src/Directory.Build.props`).
 
-- 111 unit tests: the FCS and the byte stuffing, control frames (including the proof that a
+- 148 unit tests (run 2026-11-21: Core 113, Gateway 13, Mcp 12, App 10): the FCS and the byte stuffing, control frames (including the proof that a
   control frame and a good HDLC frame can never be confused), the channel that sorts frames,
   the request and reply matching, the probe that tells a control-frame firmware from a legacy
   one, the traffic engine against a fake gateway (clean, lossy, two gateways), the session
@@ -81,8 +81,11 @@ Version 0.2.0.
 - Measured on that board: 95 percent of the clock rate comes through as payload up to 38400
   bit/s; above about 270 kbit/s the USB path between board and PC is the ceiling, not the
   line.
-- Not yet run: the two-gateway test with RC422Dev (its forwarding path is under repair), the
-  TCP listen role against a real nd100x, the window on a second machine.
+- The two-gateway test, HDLCGW wired to an RC422Dev Pico, both ways at once at 307200 bit/s,
+  2026-11-16: frames of 1024, 1025, 2048, 4103 and 4105 bytes, 0 bad and 0 lost in every run;
+  4106 bytes refused by the Pico as it should be. Details on the firmware's
+  [bench setups page](https://retrocorelabs.github.io/HDLCGW/docs/Bench-Setups/).
+- Not yet run: the TCP listen role against a real nd100x, the window on a second machine.
 
 ## Prerequisites
 

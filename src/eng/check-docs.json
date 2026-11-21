@@ -34,5 +34,15 @@
   "app_folders": [
     "src"
   ],
-  "waivers": []
+  "waivers": [
+    {
+      "files": [
+        "docfx/index.md"
+      ],
+      "checks": [
+        "ESCAPES"
+      ],
+      "reason": "The docs site's home page, built by DocFX from src/docfx. DocFX needs a file path to the repository README to make it a page (../../README.md from src/docfx); the page is read on the site, not on github.com."
+    }
+  ]
 }
