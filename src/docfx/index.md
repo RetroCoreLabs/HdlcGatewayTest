@@ -7,7 +7,7 @@ traffic test that proves a gateway moves frames without loss, and let an AI clie
 that over MCP. Source, releases and issues:
 [github.com/RetroCoreLabs/HdlcGatewayTest](https://github.com/RetroCoreLabs/HdlcGatewayTest).
 
-![The window with both gateways connected](../docs/screenshots/02-connected-version-light.png)
+![The HDLC Gateway Tool window with both gateways connected: HDLCGW on COM10 and an RC422Dev Pico on COM18](../docs/screenshots/window-two-gateways.png)
 
 | Page | What it covers |
 |---|---|
