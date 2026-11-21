@@ -1,0 +1,21 @@
+/* The modern template puts no height on the header logo; size it here so any icon file works. */
+.navbar .navbar-brand #logo { height: 40px; width: auto; margin-right: .5rem; }
+.navbar .navbar-brand { flex-shrink: 0; }
+
+/* Menu entries on one line: the template squeezes them and puts a <wbr> inside camel-case
+   words, so "GitHub" was drawn "Git" / "Hub" around 800 px wide. */
+.navbar .navbar-nav .nav-item { flex-shrink: 0; }
+.navbar .navbar-nav .nav-link { white-space: nowrap; }
+.navbar .navbar-nav .nav-link wbr { display: none; }
+
+/* Contrast: the template's secondary grey is 3.3:1 on the dark background, and two light-scheme
+   code colours are under 4.5:1. */
+[data-bs-theme="dark"] { --bs-secondary-rgb: 173, 181, 189; }
+[data-bs-theme="light"] .hljs-symbol { color: #0b5f87; }
+[data-bs-theme="light"] .hljs-attr { color: #b3001b; }
+
+/* Phone width: a long link or file path in the text may break anywhere, and a wide table
+   scrolls inside itself instead of making the whole page scroll sideways (the overview's
+   applications table and its release link, 390 px wide). */
+article { overflow-wrap: anywhere; }
+article table { display: block; max-width: 100%; overflow-x: auto; }

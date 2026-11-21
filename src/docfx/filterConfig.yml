@@ -1,0 +1,6 @@
+# The window's classes inherit hundreds of Avalonia members (Window, UserControl, Application).
+# Hide those so a page shows what this repository wrote; the inheritance chain stays.
+apiRules:
+  - exclude:
+      uidRegex: '^Avalonia\.'
+      type: Member

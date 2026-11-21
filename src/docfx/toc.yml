@@ -1,0 +1,13 @@
+# The header menu on every page. No "Home": the logo leads there, and six entries pushed the
+# search box off the bar at 800 px wide.
+- name: Overview
+  href: ../../README.md
+- name: Window
+  href: ../HdlcGatewayTest.App/README.md
+- name: Command line
+  href: ../HdlcGatewayTest.Loopback/README.md
+- name: API
+  href: api/
+  topicHref: api/index.md
+- name: GitHub
+  href: https://github.com/RetroCoreLabs/HdlcGatewayTest
