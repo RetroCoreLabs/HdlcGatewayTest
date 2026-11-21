@@ -13,7 +13,7 @@ of that over MCP.
 
 **Download** · [Docs site](https://retrocorelabs.github.io/HdlcGatewayTest/) · [What it does](#what-you-can-use-it-for) · [Quick start](#quick-start) · [MCP](#driving-the-tool-from-an-ai-mcp) · [Building](#building-from-source) · [About HDLC](#about-hdlc-and-these-gateways)
 
-**Latest build for Windows:** https://github.com/RetroCoreLabs/HdlcGatewayTest/releases/latest
+**Latest build for Windows, Linux and macOS:** https://github.com/RetroCoreLabs/HdlcGatewayTest/releases/latest
 
 ## Why it exists
 
@@ -91,7 +91,7 @@ Version 0.3.0 (`VersionPrefix` in `src/Directory.Build.props`).
 
 | # | Requirement | Needed for | How to check |
 |---|---|---|---|
-| 1 | Windows 10 or 11, 64-bit | the released exes | |
+| 1 | Windows 10 or 11 (x64), Linux (x64) or macOS 12 or later (Apple silicon or Intel) | the released programs | |
 | 2 | A gateway on a USB serial port | everything | `hdlc-loopback --list` shows the port |
 | 3 | Two jumper wires | loopback: transmit clock to receive clock, transmit data to receive data | |
 | 4 | .NET SDK as pinned in `src/global.json` | building from source only | `dotnet --info` |

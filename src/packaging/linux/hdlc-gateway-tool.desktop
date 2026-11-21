@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=HDLC Gateway Tool
+Comment=Drive and test the HDLCGW and RC422Dev HDLC gateways
+Exec=__EXEC__
+Icon=hdlc-gateway-tool
+Terminal=false
+StartupWMClass=hdlc-gateway-tool
+Categories=Development;Electronics;

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The Info.plist of HdlcGatewayTest.app, the window (hdlc-gateway-tool) on macOS. The release
+     workflow (.github/workflows/build.yml) copies it into the bundle's Contents/ and replaces
+     __VERSION__ with the release version.
+
+     CFBundleExecutable is the file in Contents/MacOS/ that macOS starts; CFBundleIconFile is the
+     .icns in Contents/Resources/, which the workflow draws from src/assets/HdlcGatewayTest.svg.
+     A bare macOS executable has no icon at all: Finder and the Dock only read one out of a .app.
+
+     The bundle identifier is reverse-DNS on the GitHub Pages host, because there is no domain of
+     our own (NAMING.md). Same pattern as RetroTerm. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>HdlcGatewayTest</string>
+    <key>CFBundleDisplayName</key>
+    <string>HDLC Gateway Tool</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.retrocorelabs.hdlcgatewaytest</string>
+    <key>CFBundleExecutable</key>
+    <string>hdlc-gateway-tool</string>
+    <key>CFBundleIconFile</key>
+    <string>HdlcGatewayTest.icns</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.developer-tools</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>RetroCore Labs</string>
+</dict>
+</plist>

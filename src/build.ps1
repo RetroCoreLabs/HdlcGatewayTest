@@ -20,7 +20,9 @@
   Release (default) or Debug.
 
 .PARAMETER Runtime
-  RID to publish for. Default win-x64; linux-x64 and osx-arm64 also work.
+  RID to publish for. Default win-x64. The release workflow also publishes linux-x64,
+  osx-x64 and osx-arm64, each on its own operating system. Paths are joined with Join-Path
+  segments, not backslashes, so the script runs under pwsh on Linux and macOS.
 
 .PARAMETER Output
   Where the exe goes. Default: publish\<Runtime> next to this script.
@@ -92,14 +94,14 @@ New-Item -ItemType Directory -Force $Output | Out-Null
 
 Write-Host '== Publish hdlc-loopback'
 # Compressed: a console tool is started for one run, the cold-start cost does not matter.
-dotnet publish (Join-Path $root 'HdlcGatewayTest.Loopback\HdlcGatewayTest.Loopback.csproj') @publishArgs `
+dotnet publish (Join-Path $root 'HdlcGatewayTest.Loopback' 'HdlcGatewayTest.Loopback.csproj') @publishArgs `
     '-p:EnableCompressionInSingleFile=true' -o $Output @common
 if ($LASTEXITCODE -ne 0) { throw 'publish of hdlc-loopback failed' }
 
 Write-Host '== Publish hdlc-gateway-tool'
 # NOT compressed: RetroTerm measured the decompression on every cold start of an Avalonia app
 # and chose launch speed over file size; the same choice here (plan decision 2026-11-08).
-dotnet publish (Join-Path $root 'HdlcGatewayTest.App\HdlcGatewayTest.App.csproj') @publishArgs -o $Output @common
+dotnet publish (Join-Path $root 'HdlcGatewayTest.App' 'HdlcGatewayTest.App.csproj') @publishArgs -o $Output @common
 if ($LASTEXITCODE -ne 0) { throw 'publish of hdlc-gateway-tool failed' }
 # The Skia and HarfBuzz native packages ship their own .pdb symbol files (libSkiaSharp.pdb,
 # libHarfBuzzSharp.pdb, 100 MB together) and DebugType=none does not touch native symbols. They
