@@ -70,13 +70,17 @@ if ($Clean -and (Test-Path $Output)) {
     Remove-Item $Output -Recurse -Force
 }
 
+# The solution is named, so the script works from any folder (the release workflow starts
+# it from the repository root).
+$solution = Join-Path $root 'HdlcGatewayTest.slnx'
+
 Write-Host '== Restore and build'
-dotnet build -c $Configuration @common
+dotnet build $solution -c $Configuration @common
 if ($LASTEXITCODE -ne 0) { throw 'build failed' }
 
 if (-not $SkipTests) {
     Write-Host '== Test'
-    dotnet test -c $Configuration --no-build @common
+    dotnet test $solution -c $Configuration --no-build @common
     if ($LASTEXITCODE -ne 0) { throw 'tests failed - nothing published.' }
 }
 
