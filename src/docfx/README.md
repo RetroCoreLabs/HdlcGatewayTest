@@ -20,7 +20,7 @@ broken link or a comment DocFX could not read.
 | `api/index.md` | The API reference start page; the rest of `api/` is generated |
 | `filterConfig.yml` | Hides the members the window classes inherit from Avalonia |
 | `template/public/main.css` | Header logo size, menu on one line, text contrast in light and dark |
-| `icon.svg` | The header and tab icon |
+| `../assets/HdlcGatewayTest.svg` | The header and tab icon (green, so the site is never mistaken for the firmware's orange one) |
 
 A README under `src/` is mapped from `src`, the repository's own `README.md` and `.github`
 files from the repository root. A link from the root README to a README under `src/` cannot be
