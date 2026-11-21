@@ -108,8 +108,10 @@ jobs:
       - name: Build, test and publish
         shell: pwsh
         run: |
-          $a = @('-Runtime', '${{ matrix.rid }}', '-Output', (Join-Path $env:GITHUB_WORKSPACE 'out/bin'))
-          if ($env:VERSION) { $a += @('-Version', $env:VERSION) }
+          # A hashtable, not an array: an array splats by position and '-Runtime' then lands in
+          # -Configuration (first run, 21 November 2026).
+          $a = @{ Runtime = '${{ matrix.rid }}'; Output = (Join-Path $env:GITHUB_WORKSPACE 'out/bin') }
+          if ($env:VERSION) { $a.Version = $env:VERSION }
           ./src/build.ps1 @a
           $loose = Get-ChildItem out/bin -Recurse -File | Where-Object { $_.Extension -in '.dll', '.pdb' }
           if ($loose) { $loose | ForEach-Object { $_.FullName }; throw 'loose .dll/.pdb files: the programs are not standalone' }
