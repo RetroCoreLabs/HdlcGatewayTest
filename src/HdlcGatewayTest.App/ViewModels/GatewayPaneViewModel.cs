@@ -286,6 +286,67 @@ public sealed class GatewayPaneViewModel : ObservableObject
     /// <summary>Board from HELLO (LOLIN S2 Mini, Raspberry Pi Pico).</summary>
     public string FirmwareBoard => Identity(i => i.Board);
 
+    /// <summary>Chip revision from HELLO, for example "0.0".</summary>
+    public string FirmwareRevision => Identity(i => i.Revision);
+
+    /// <summary>Chip serial number from HELLO (factory MAC on an ESP32, flash unique ID on a Pico).</summary>
+    public string FirmwareSerial => Identity(i => i.Serial);
+
+    /// <summary>"2 cores, 240 MHz" from HELLO, or empty on firmware that does not say.</summary>
+    public string FirmwareCpu => Identity(i => Join(
+        i.Cores.HasValue ? i.Cores.Value + (i.Cores.Value == 1 ? " core" : " cores") : string.Empty,
+        i.CpuMhz.HasValue ? i.CpuMhz.Value + " MHz" : string.Empty));
+
+    /// <summary>"4 MB on the chip, image built for 4 MB, 80 MHz, qio" from HELLO.</summary>
+    public string FirmwareFlash => Identity(i => Join(
+        i.FlashBytes.HasValue ? Bytes(i.FlashBytes.Value) + " on the chip" : string.Empty,
+        i.FlashImageBytes.HasValue ? "image built for " + Bytes(i.FlashImageBytes.Value) : string.Empty,
+        i.FlashMhz.HasValue ? i.FlashMhz.Value + " MHz" : string.Empty,
+        i.FlashMode));
+
+    /// <summary>Internal RAM from HELLO: size, free, least free since start, largest block.</summary>
+    public string FirmwareRam => Identity(i => Join(
+        i.RamBytes.HasValue ? Bytes(i.RamBytes.Value) : string.Empty,
+        i.RamFree.HasValue ? Bytes(i.RamFree.Value) + " free" : string.Empty,
+        i.RamLeast.HasValue ? "least " + Bytes(i.RamLeast.Value) : string.Empty,
+        i.RamBlock.HasValue ? "largest block " + Bytes(i.RamBlock.Value) : string.Empty));
+
+    /// <summary>PSRAM from HELLO: "none" when the board has none, else size, free and largest block.</summary>
+    public string FirmwarePsram => Identity(i => i.PsramBytes == 0 ? "none" : Join(
+        i.PsramBytes.HasValue ? Bytes(i.PsramBytes.Value) : string.Empty,
+        i.PsramFree.HasValue ? Bytes(i.PsramFree.Value) + " free" : string.Empty,
+        i.PsramBlock.HasValue ? "largest block " + Bytes(i.PsramBlock.Value) : string.Empty));
+
+    /// <summary>A byte count as "4 MB" when it is a whole number of MB, else "12,848 bytes".</summary>
+    public static string Bytes(long n)
+    {
+        const long Mb = 1024 * 1024;
+        if (n >= Mb && n % Mb == 0)
+        {
+            return (n / Mb).ToString(System.Globalization.CultureInfo.InvariantCulture) + " MB";
+        }
+        return n.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + " bytes";
+    }
+
+    /// <summary>The non-empty parts joined with ", ".</summary>
+    private static string Join(params string[] parts)
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (parts[i].Length == 0)
+            {
+                continue;
+            }
+            if (sb.Length > 0)
+            {
+                sb.Append(", ");
+            }
+            sb.Append(parts[i]);
+        }
+        return sb.ToString();
+    }
+
     /// <summary>Longest frame the firmware takes, from HELLO.</summary>
     public string FirmwareMaxFrame => Identity(i => i.MaxFrame > 0 ? i.MaxFrame + " bytes" : string.Empty);
 
@@ -750,6 +811,12 @@ public sealed class GatewayPaneViewModel : ObservableObject
         Raise(nameof(FirmwareBuild));
         Raise(nameof(FirmwareChip));
         Raise(nameof(FirmwareBoard));
+        Raise(nameof(FirmwareRevision));
+        Raise(nameof(FirmwareSerial));
+        Raise(nameof(FirmwareCpu));
+        Raise(nameof(FirmwareFlash));
+        Raise(nameof(FirmwareRam));
+        Raise(nameof(FirmwarePsram));
         Raise(nameof(FirmwareMaxFrame));
         Raise(nameof(FirmwareCapabilities));
         Raise(nameof(FirmwareProtocol));

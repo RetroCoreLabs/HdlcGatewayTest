@@ -72,7 +72,7 @@ its frame and console logs), `HdlcGatewayTest.Serial` (the COM port) and `HdlcGa
 
 Version 0.3.0 (`VersionPrefix` in `src/Directory.Build.props`).
 
-- 148 unit tests (run 2026-11-21: Core 113, Gateway 13, Mcp 12, App 10): the FCS and the byte stuffing, control frames (including the proof that a
+- 150 unit tests (run 2026-11-23: Core 115, Gateway 13, Mcp 12, App 10): the FCS and the byte stuffing, control frames (including the proof that a
   control frame and a good HDLC frame can never be confused), the channel that sorts frames,
   the request and reply matching, the probe that tells a control-frame firmware from a legacy
   one, the traffic engine against a fake gateway (clean, lossy, two gateways), the session

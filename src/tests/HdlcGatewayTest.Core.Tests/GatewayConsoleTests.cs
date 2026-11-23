@@ -152,6 +152,55 @@ public sealed class GatewayConsoleTests
     }
 
     [Test]
+    public void Hello_ParsesHardwareKeys()
+    {
+        // The hardware keys HDLCGW and XMSGGW send since 2026-11-23 (board_hello_hardware).
+        string text = "name=HDLCGW\nversion=0.3.6\nchip=ESP32-S2\nrev=0.0\nserial=7CDFA1E2B3C4\ncores=1\nmhz=240\n"
+                      + "flash=4194304\nflashimage=4194304\nflashmhz=80\nflashmode=qio\n"
+                      + "ram=154000\nramfree=12848\nramleast=11044\nramblock=8192\n"
+                      + "psram=2097152\npsramfree=2003376\npsramblock=1966068\n";
+        byte[] payload = new byte[1 + Encoding.UTF8.GetByteCount(text)];
+        payload[0] = 1;
+        Encoding.UTF8.GetBytes(text, 0, text.Length, payload, 1);
+
+        Assert.That(GatewayIdentity.TryParse(payload, out GatewayIdentity? id), Is.True);
+        Assert.That(id!.Revision, Is.EqualTo("0.0"));
+        Assert.That(id.Serial, Is.EqualTo("7CDFA1E2B3C4"));
+        Assert.That(id.Cores, Is.EqualTo(1));
+        Assert.That(id.CpuMhz, Is.EqualTo(240));
+        Assert.That(id.FlashBytes, Is.EqualTo(4194304));
+        Assert.That(id.FlashImageBytes, Is.EqualTo(4194304));
+        Assert.That(id.FlashMhz, Is.EqualTo(80));
+        Assert.That(id.FlashMode, Is.EqualTo("qio"));
+        Assert.That(id.RamBytes, Is.EqualTo(154000));
+        Assert.That(id.RamFree, Is.EqualTo(12848));
+        Assert.That(id.RamLeast, Is.EqualTo(11044));
+        Assert.That(id.RamBlock, Is.EqualTo(8192));
+        Assert.That(id.PsramBytes, Is.EqualTo(2097152));
+        Assert.That(id.PsramFree, Is.EqualTo(2003376));
+        Assert.That(id.PsramBlock, Is.EqualTo(1966068));
+    }
+
+    [Test]
+    public void Hello_WithoutHardwareKeys_GivesNullAndEmpty()
+    {
+        // Firmware from before 2026-11-23, and a value that is not a number.
+        string text = "name=HDLCGW\nversion=0.3.5\nmhz=fast\n";
+        byte[] payload = new byte[1 + Encoding.UTF8.GetByteCount(text)];
+        payload[0] = 1;
+        Encoding.UTF8.GetBytes(text, 0, text.Length, payload, 1);
+
+        Assert.That(GatewayIdentity.TryParse(payload, out GatewayIdentity? id), Is.True);
+        Assert.That(id!.Revision, Is.Empty);
+        Assert.That(id.Serial, Is.Empty);
+        Assert.That(id.Cores, Is.Null);
+        Assert.That(id.CpuMhz, Is.Null);
+        Assert.That(id.FlashBytes, Is.Null);
+        Assert.That(id.PsramBytes, Is.Null);
+        Assert.That(id.FlashMode, Is.Empty);
+    }
+
+    [Test]
     public void Statistics_ParseWith17Fields_AndWith10()
     {
         byte[] full = new byte[17 * 4];

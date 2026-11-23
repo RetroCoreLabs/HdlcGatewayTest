@@ -8,7 +8,9 @@ namespace HdlcGatewayTest.Core;
 
 /// <summary>
 /// The firmware's answer to HELLO: a protocol version byte followed by key=value lines
-/// separated by LF. Known keys are name, version, build, maxframe and caps (comma separated);
+/// separated by LF. Known keys are name, version, build, chip, board, maxframe, caps (comma
+/// separated) and the hardware keys rev, serial, cores, mhz, flash, flashimage, flashmhz,
+/// flashmode, ram, ramfree, ramleast, ramblock, psram, psramfree and psramblock (2026-11-23);
 /// unknown keys are kept in <see cref="Values"/> so a newer firmware loses nothing.
 /// </summary>
 public sealed class GatewayIdentity
@@ -60,6 +62,54 @@ public sealed class GatewayIdentity
     /// <summary>Longest frame the firmware accepts, or 0 when not reported.</summary>
     public int MaxFrame => int.TryParse(Get("maxframe"), out int n) ? n : 0;
 
+    /// <summary>Chip revision, for example "0.0" (key "rev"; empty on older firmware).</summary>
+    public string Revision => Get("rev");
+
+    /// <summary>
+    /// The chip's serial number (key "serial"): the factory MAC from eFuse on an ESP32, the flash
+    /// chip's unique ID on a Pico. Empty on older firmware.
+    /// </summary>
+    public string Serial => Get("serial");
+
+    /// <summary>CPU cores (key "cores"), or null when not reported.</summary>
+    public long? Cores => GetNumber("cores");
+
+    /// <summary>CPU clock in MHz (key "mhz"), or null when not reported.</summary>
+    public long? CpuMhz => GetNumber("mhz");
+
+    /// <summary>Flash size read from the flash chip, in bytes (key "flash"), or null when not reported.</summary>
+    public long? FlashBytes => GetNumber("flash");
+
+    /// <summary>Flash size the firmware image was built for, in bytes (key "flashimage"), or null.</summary>
+    public long? FlashImageBytes => GetNumber("flashimage");
+
+    /// <summary>Flash clock in MHz (key "flashmhz"), or null when not reported.</summary>
+    public long? FlashMhz => GetNumber("flashmhz");
+
+    /// <summary>Flash access mode, for example "qio" or "dio" (key "flashmode"; empty when not reported).</summary>
+    public string FlashMode => Get("flashmode");
+
+    /// <summary>Internal RAM (heap) size in bytes (key "ram"), or null when not reported.</summary>
+    public long? RamBytes => GetNumber("ram");
+
+    /// <summary>Internal RAM free when HELLO was answered, in bytes (key "ramfree"), or null.</summary>
+    public long? RamFree => GetNumber("ramfree");
+
+    /// <summary>Least internal RAM free since the board started, in bytes (key "ramleast"), or null.</summary>
+    public long? RamLeast => GetNumber("ramleast");
+
+    /// <summary>Largest free block of internal RAM, in bytes (key "ramblock"), or null.</summary>
+    public long? RamBlock => GetNumber("ramblock");
+
+    /// <summary>PSRAM size in bytes (key "psram"; 0 when the board has none), or null when not reported.</summary>
+    public long? PsramBytes => GetNumber("psram");
+
+    /// <summary>PSRAM free in bytes (key "psramfree"), or null when not reported.</summary>
+    public long? PsramFree => GetNumber("psramfree");
+
+    /// <summary>Largest free block of PSRAM, in bytes (key "psramblock"), or null when not reported.</summary>
+    public long? PsramBlock => GetNumber("psramblock");
+
     /// <summary>Capability words from the caps key.</summary>
     public IReadOnlyList<string> Capabilities => _capabilities;
 
@@ -103,5 +153,14 @@ public sealed class GatewayIdentity
     private string Get(string key)
     {
         return _values.TryGetValue(key, out string? value) ? value : string.Empty;
+    }
+
+    /// <summary>A whole number from a key, or null when the key is missing or not a number.</summary>
+    private long? GetNumber(string key)
+    {
+        return _values.TryGetValue(key, out string? value)
+               && long.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long n)
+            ? n
+            : null;
     }
 }

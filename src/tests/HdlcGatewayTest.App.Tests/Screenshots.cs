@@ -40,10 +40,13 @@ namespace HdlcGatewayTest.App.Tests;
 public sealed class Screenshots
 {
     private const string EspHello =
-        "name=HDLCGW\nversion=0.3.5\nbuild=bench\nchip=ESP32-S2\nboard=LOLIN S2 Mini\nmaxframe=4105\ncaps=cmd,log,stat\n";
+        "name=HDLCGW\nversion=0.3.5\nbuild=bench\nchip=ESP32-S2\nboard=LOLIN S2 Mini\nmaxframe=4105\ncaps=cmd,log,stat\n"
+        + "rev=0.0\ncores=1\nmhz=240\nflash=4194304\nflashimage=4194304\nflashmhz=80\nflashmode=dio\n"
+        + "ram=154000\nramfree=12848\nramleast=11044\npsram=2097152\npsramfree=2003376\n";
 
     private const string PicoHello =
-        "name=RC422Dev\nversion=0.2.0\nbuild=bench\nchip=RP2040\nboard=Raspberry Pi Pico\nmaxframe=4105\ncaps=cmd,stat\n";
+        "name=RC422Dev\nversion=0.2.0\nbuild=bench\nchip=RP2040\nboard=Raspberry Pi Pico\nmaxframe=4105\ncaps=cmd,stat\n"
+        + "cores=2\nflashimage=2097152\nram=270336\npsram=0\n";
 
     private HeadlessUnitTestSession? _session;
     private string _outDir = string.Empty;
@@ -123,8 +126,16 @@ public sealed class Screenshots
             main.PaneB.CommandText = "BAUD 307200";
             main.PaneB.SendCommand.Execute(null);
             PumpFor(500);
+            // The whole Version table, hardware rows included, in the picture: a taller window and
+            // a taller tab row (300 pixels in MainWindow.axaml; a user drags the bar above it).
+            Grid root = (Grid)window.Content!;
+            GridLength tabRow = root.RowDefinitions[2].Height;
+            window.Height = 1100;
+            root.RowDefinitions[2].Height = new GridLength(460);
             SelectTab(window, "Version");
             Save(window, "02-connected-version", theme);
+            root.RowDefinitions[2].Height = tabRow;
+            window.Height = 900;
 
             // 3. Pane A in the Free role: frames typed in hex, decoded in the frame list.
             main.PaneA.SelectedRole = GatewayPaneViewModel.RoleName(GatewayRole.Free);

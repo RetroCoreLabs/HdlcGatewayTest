@@ -70,7 +70,9 @@ public sealed class FakeGateway
     /// firmware so the pictures read like the bench.
     /// </summary>
     public string HelloText { get; set; } =
-        "name=FAKEGW\nversion=0.2.0\nbuild=test\nchip=FAKE1\nboard=Test bench\nmaxframe=1024\ncaps=cmd,log,stat\n";
+        "name=FAKEGW\nversion=0.2.0\nbuild=test\nchip=FAKE1\nboard=Test bench\nmaxframe=1024\ncaps=cmd,log,stat\n"
+        + "rev=1.0\nserial=0011223344AA\ncores=2\nmhz=240\nflash=4194304\nflashimage=2097152\nflashmhz=80\nflashmode=dio\n"
+        + "ram=323204\nramfree=216156\nramleast=200388\nramblock=110580\npsram=0\n";
 
     /// <summary>Current transmit clock, set by BAUD.</summary>
     public uint Baud { get; private set; } = 38400;

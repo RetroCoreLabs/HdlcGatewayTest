@@ -19,7 +19,9 @@
         <TabControl Grid.Row="2" Margin="4,0">
             <!-- Who is on each port: what the firmware said in its HELLO reply (Ronny, 2026-11-09). -->
             <TabItem Header="Version">
-                <Grid ColumnDefinitions="160,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,6">
+                <!-- Scrolls: with the hardware rows (2026-11-23) the table is taller than the tab area of a 900-pixel window. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <Grid ColumnDefinitions="180,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,6">
                     <Grid.Styles>
                         <Style Selector="TextBlock">
                             <Setter Property="Margin" Value="0,2,12,2" />
@@ -46,16 +48,36 @@
                     <TextBlock Grid.Row="6" Grid.Column="0" Text="Board" />
                     <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding PaneA.FirmwareBoard}" />
                     <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding PaneB.FirmwareBoard}" />
-                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Longest frame" />
-                    <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding PaneA.FirmwareMaxFrame}" />
-                    <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding PaneB.FirmwareMaxFrame}" />
-                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Capabilities" />
-                    <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding PaneA.FirmwareCapabilities}" />
-                    <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding PaneB.FirmwareCapabilities}" />
-                    <TextBlock Grid.Row="9" Grid.Column="0" Text="Control-frame protocol" />
-                    <TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding PaneA.FirmwareProtocol}" />
-                    <TextBlock Grid.Row="9" Grid.Column="2" Text="{Binding PaneB.FirmwareProtocol}" />
+                    <!-- Hardware rows from the HELLO keys added 2026-11-23 (rev, serial, cores, mhz, flash..., ram..., psram...). -->
+                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Chip revision" />
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding PaneA.FirmwareRevision}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding PaneB.FirmwareRevision}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Serial number" />
+                    <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding PaneA.FirmwareSerial}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding PaneB.FirmwareSerial}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="9" Grid.Column="0" Text="CPU" />
+                    <TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding PaneA.FirmwareCpu}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="9" Grid.Column="2" Text="{Binding PaneB.FirmwareCpu}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="10" Grid.Column="0" Text="Flash" />
+                    <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding PaneA.FirmwareFlash}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="10" Grid.Column="2" Text="{Binding PaneB.FirmwareFlash}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="11" Grid.Column="0" Text="Internal RAM" />
+                    <TextBlock Grid.Row="11" Grid.Column="1" Text="{Binding PaneA.FirmwareRam}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="11" Grid.Column="2" Text="{Binding PaneB.FirmwareRam}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="12" Grid.Column="0" Text="PSRAM" />
+                    <TextBlock Grid.Row="12" Grid.Column="1" Text="{Binding PaneA.FirmwarePsram}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="12" Grid.Column="2" Text="{Binding PaneB.FirmwarePsram}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="13" Grid.Column="0" Text="Longest frame" />
+                    <TextBlock Grid.Row="13" Grid.Column="1" Text="{Binding PaneA.FirmwareMaxFrame}" />
+                    <TextBlock Grid.Row="13" Grid.Column="2" Text="{Binding PaneB.FirmwareMaxFrame}" />
+                    <TextBlock Grid.Row="14" Grid.Column="0" Text="Capabilities" />
+                    <TextBlock Grid.Row="14" Grid.Column="1" Text="{Binding PaneA.FirmwareCapabilities}" />
+                    <TextBlock Grid.Row="14" Grid.Column="2" Text="{Binding PaneB.FirmwareCapabilities}" />
+                    <TextBlock Grid.Row="15" Grid.Column="0" Text="Control-frame protocol" />
+                    <TextBlock Grid.Row="15" Grid.Column="1" Text="{Binding PaneA.FirmwareProtocol}" />
+                    <TextBlock Grid.Row="15" Grid.Column="2" Text="{Binding PaneB.FirmwareProtocol}" />
                 </Grid>
+                </ScrollViewer>
             </TabItem>
 
             <!-- The traffic test. -->
