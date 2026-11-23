@@ -72,7 +72,9 @@ public sealed class FakeGateway
     public string HelloText { get; set; } =
         "name=FAKEGW\nversion=0.2.0\nbuild=test\nchip=FAKE1\nboard=Test bench\nmaxframe=1024\ncaps=cmd,log,stat\n"
         + "rev=1.0\nserial=0011223344AA\ncores=2\nmhz=240\nflash=4194304\nflashimage=2097152\nflashmhz=80\nflashmode=dio\n"
-        + "ram=323204\nramfree=216156\nramleast=200388\nramblock=110580\npsram=0\n";
+        + "ram=323204\nramfree=216156\nramleast=200388\nramblock=110580\npsram=0\n"
+        + "pkg=0\nblkver=0.2\nembflash=2\nembpsram=1\nuid=00112233445566778899AABBCCDDEEFF\nflashid=204016\n"
+        + "usbfuse=0010\nvddspi=001\n";
 
     /// <summary>Current transmit clock, set by BAUD.</summary>
     public uint Baud { get; private set; } = 38400;

@@ -42,7 +42,8 @@ public sealed class Screenshots
     private const string EspHello =
         "name=HDLCGW\nversion=0.3.5\nbuild=bench\nchip=ESP32-S2\nboard=LOLIN S2 Mini\nmaxframe=4105\ncaps=cmd,log,stat\n"
         + "rev=0.0\ncores=1\nmhz=240\nflash=4194304\nflashimage=4194304\nflashmhz=80\nflashmode=dio\n"
-        + "ram=154000\nramfree=12848\nramleast=11044\npsram=2097152\npsramfree=2003376\n";
+        + "ram=154000\nramfree=12848\nramleast=11044\npsram=2097152\npsramfree=2003376\n"
+        + "pkg=0\nblkver=0.2\nembflash=2\nembpsram=1\nflashid=204016\nusbfuse=0000\nvddspi=000\n";
 
     private const string PicoHello =
         "name=RC422Dev\nversion=0.2.0\nbuild=bench\nchip=RP2040\nboard=Raspberry Pi Pico\nmaxframe=4105\ncaps=cmd,stat\n"
@@ -130,8 +131,8 @@ public sealed class Screenshots
             // a taller tab row (300 pixels in MainWindow.axaml; a user drags the bar above it).
             Grid root = (Grid)window.Content!;
             GridLength tabRow = root.RowDefinitions[2].Height;
-            window.Height = 1100;
-            root.RowDefinitions[2].Height = new GridLength(460);
+            window.Height = 1200;
+            root.RowDefinitions[2].Height = new GridLength(560);
             SelectTab(window, "Version");
             Save(window, "02-connected-version", theme);
             root.RowDefinitions[2].Height = tabRow;

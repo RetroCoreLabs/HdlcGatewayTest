@@ -317,6 +317,31 @@ public sealed class GatewayPaneViewModel : ObservableObject
         i.PsramFree.HasValue ? Bytes(i.PsramFree.Value) + " free" : string.Empty,
         i.PsramBlock.HasValue ? "largest block " + Bytes(i.PsramBlock.Value) : string.Empty));
 
+    /// <summary>The chip's 128-bit unique ID from HELLO.</summary>
+    public string FirmwareUniqueId => Identity(i => i.UniqueId);
+
+    /// <summary>"package 0, eFuse block 0.2, built-in flash 2, built-in PSRAM 1" from HELLO.</summary>
+    public string FirmwareChipIds => Identity(i => Join(
+        i.Package.Length > 0 ? "package " + i.Package : string.Empty,
+        i.EfuseBlockVersion.Length > 0 ? "eFuse block " + i.EfuseBlockVersion : string.Empty,
+        i.EmbeddedFlash.Length > 0 ? "built-in flash " + i.EmbeddedFlash : string.Empty,
+        i.EmbeddedPsram.Length > 0 ? "built-in PSRAM " + i.EmbeddedPsram : string.Empty));
+
+    /// <summary>"204016 (maker 20)" from HELLO: the flash chip's JEDEC ID and its maker byte.</summary>
+    public string FirmwareFlashId => Identity(i => i.FlashId.Length >= 2
+        ? i.FlashId + " (maker " + i.FlashId.Substring(0, 2) + ")"
+        : i.FlashId);
+
+    /// <summary>The USB and flash-supply eFuses from HELLO, each digit named.</summary>
+    public string FirmwareFuses => Identity(i => Join(
+        i.UsbFuses.Length == 4
+            ? "USB off " + i.UsbFuses[0] + ", download off " + i.UsbFuses[1] + ", pins swapped " + i.UsbFuses[2]
+              + ", external PHY " + i.UsbFuses[3]
+            : i.UsbFuses,
+        i.VddSpiFuses.Length == 3
+            ? "VDD_SPI force " + i.VddSpiFuses[0] + ", tieh " + i.VddSpiFuses[1] + ", xpd " + i.VddSpiFuses[2]
+            : i.VddSpiFuses));
+
     /// <summary>A byte count as "4 MB" when it is a whole number of MB, else "12,848 bytes".</summary>
     public static string Bytes(long n)
     {
@@ -817,6 +842,10 @@ public sealed class GatewayPaneViewModel : ObservableObject
         Raise(nameof(FirmwareFlash));
         Raise(nameof(FirmwareRam));
         Raise(nameof(FirmwarePsram));
+        Raise(nameof(FirmwareUniqueId));
+        Raise(nameof(FirmwareChipIds));
+        Raise(nameof(FirmwareFlashId));
+        Raise(nameof(FirmwareFuses));
         Raise(nameof(FirmwareMaxFrame));
         Raise(nameof(FirmwareCapabilities));
         Raise(nameof(FirmwareProtocol));

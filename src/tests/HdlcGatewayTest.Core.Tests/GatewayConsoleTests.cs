@@ -158,7 +158,9 @@ public sealed class GatewayConsoleTests
         string text = "name=HDLCGW\nversion=0.3.6\nchip=ESP32-S2\nrev=0.0\nserial=7CDFA1E2B3C4\ncores=1\nmhz=240\n"
                       + "flash=4194304\nflashimage=4194304\nflashmhz=80\nflashmode=qio\n"
                       + "ram=154000\nramfree=12848\nramleast=11044\nramblock=8192\n"
-                      + "psram=2097152\npsramfree=2003376\npsramblock=1966068\n";
+                      + "psram=2097152\npsramfree=2003376\npsramblock=1966068\n"
+                      + "pkg=0\nblkver=0.2\nembflash=2\nembpsram=1\nuid=2799C19520D9D46748C31F778D199E61\n"
+                      + "flashid=204016\nusbfuse=0000\nvddspi=000\n";
         byte[] payload = new byte[1 + Encoding.UTF8.GetByteCount(text)];
         payload[0] = 1;
         Encoding.UTF8.GetBytes(text, 0, text.Length, payload, 1);
@@ -179,6 +181,14 @@ public sealed class GatewayConsoleTests
         Assert.That(id.PsramBytes, Is.EqualTo(2097152));
         Assert.That(id.PsramFree, Is.EqualTo(2003376));
         Assert.That(id.PsramBlock, Is.EqualTo(1966068));
+        Assert.That(id.Package, Is.EqualTo("0"));
+        Assert.That(id.EfuseBlockVersion, Is.EqualTo("0.2"));
+        Assert.That(id.EmbeddedFlash, Is.EqualTo("2"));
+        Assert.That(id.EmbeddedPsram, Is.EqualTo("1"));
+        Assert.That(id.UniqueId, Is.EqualTo("2799C19520D9D46748C31F778D199E61"));
+        Assert.That(id.FlashId, Is.EqualTo("204016"));
+        Assert.That(id.UsbFuses, Is.EqualTo("0000"));
+        Assert.That(id.VddSpiFuses, Is.EqualTo("000"));
     }
 
     [Test]

@@ -110,6 +110,36 @@ public sealed class GatewayIdentity
     /// <summary>Largest free block of PSRAM, in bytes (key "psramblock"), or null when not reported.</summary>
     public long? PsramBlock => GetNumber("psramblock");
 
+    /// <summary>
+    /// The chip's 128-bit unique ID from eFuse, 32 hex digits (key "uid"; ESP32-S2, since
+    /// 2026-11-23). Empty when not reported.
+    /// </summary>
+    public string UniqueId => Get("uid");
+
+    /// <summary>Package number from eFuse (key "pkg"), as sent; empty when not reported.</summary>
+    public string Package => Get("pkg");
+
+    /// <summary>eFuse block version, major.minor (key "blkver"), as sent; empty when not reported.</summary>
+    public string EfuseBlockVersion => Get("blkver");
+
+    /// <summary>Built-in flash version from eFuse (key "embflash"), as sent; empty when not reported.</summary>
+    public string EmbeddedFlash => Get("embflash");
+
+    /// <summary>Built-in PSRAM version from eFuse (key "embpsram"), as sent; empty when not reported.</summary>
+    public string EmbeddedPsram => Get("embpsram");
+
+    /// <summary>The flash chip's JEDEC ID in hex; the top byte names the maker (key "flashid").</summary>
+    public string FlashId => Get("flashid");
+
+    /// <summary>
+    /// The chip's USB eFuses as four digits: USB off, USB download off, pins swapped, external
+    /// PHY (key "usbfuse"); empty when not reported.
+    /// </summary>
+    public string UsbFuses => Get("usbfuse");
+
+    /// <summary>The flash supply eFuses as three digits: force, tieh, xpd (key "vddspi").</summary>
+    public string VddSpiFuses => Get("vddspi");
+
     /// <summary>Capability words from the caps key.</summary>
     public IReadOnlyList<string> Capabilities => _capabilities;
 

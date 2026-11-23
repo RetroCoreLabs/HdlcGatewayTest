@@ -279,6 +279,11 @@ public sealed class GatewayPaneViewModelTests
         Assert.That(vm.FirmwareFlash, Is.EqualTo("4 MB on the chip, image built for 2 MB, 80 MHz, dio"));
         Assert.That(vm.FirmwareRam, Is.EqualTo("323,204 bytes, 216,156 bytes free, least 200,388 bytes, largest block 110,580 bytes"));
         Assert.That(vm.FirmwarePsram, Is.EqualTo("none"));
+        Assert.That(vm.FirmwareUniqueId, Is.EqualTo("00112233445566778899AABBCCDDEEFF"));
+        Assert.That(vm.FirmwareChipIds, Is.EqualTo("package 0, eFuse block 0.2, built-in flash 2, built-in PSRAM 1"));
+        Assert.That(vm.FirmwareFlashId, Is.EqualTo("204016 (maker 20)"));
+        Assert.That(vm.FirmwareFuses, Is.EqualTo(
+            "USB off 0, download off 0, pins swapped 1, external PHY 0, VDD_SPI force 0, tieh 0, xpd 1"));
         Assert.That(vm.FirmwareCapabilities, Is.EqualTo("cmd, log, stat"));
         Assert.That(vm.FirmwarePort, Is.EqualTo("GOOD"));
         Assert.That(vm.VersionSummary, Is.EqualTo("Port A: FAKEGW 0.2.0 on FAKE1 (Test bench), built test"));

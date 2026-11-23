@@ -21,7 +21,7 @@
             <TabItem Header="Version">
                 <!-- Scrolls: with the hardware rows (2026-11-23) the table is taller than the tab area of a 900-pixel window. -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <Grid ColumnDefinitions="180,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,6">
+                <Grid ColumnDefinitions="180,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,6">
                     <Grid.Styles>
                         <Style Selector="TextBlock">
                             <Setter Property="Margin" Value="0,2,12,2" />
@@ -67,15 +67,28 @@
                     <TextBlock Grid.Row="12" Grid.Column="0" Text="PSRAM" />
                     <TextBlock Grid.Row="12" Grid.Column="1" Text="{Binding PaneA.FirmwarePsram}" TextWrapping="Wrap" />
                     <TextBlock Grid.Row="12" Grid.Column="2" Text="{Binding PaneB.FirmwarePsram}" TextWrapping="Wrap" />
-                    <TextBlock Grid.Row="13" Grid.Column="0" Text="Longest frame" />
-                    <TextBlock Grid.Row="13" Grid.Column="1" Text="{Binding PaneA.FirmwareMaxFrame}" />
-                    <TextBlock Grid.Row="13" Grid.Column="2" Text="{Binding PaneB.FirmwareMaxFrame}" />
-                    <TextBlock Grid.Row="14" Grid.Column="0" Text="Capabilities" />
-                    <TextBlock Grid.Row="14" Grid.Column="1" Text="{Binding PaneA.FirmwareCapabilities}" />
-                    <TextBlock Grid.Row="14" Grid.Column="2" Text="{Binding PaneB.FirmwareCapabilities}" />
-                    <TextBlock Grid.Row="15" Grid.Column="0" Text="Control-frame protocol" />
-                    <TextBlock Grid.Row="15" Grid.Column="1" Text="{Binding PaneA.FirmwareProtocol}" />
-                    <TextBlock Grid.Row="15" Grid.Column="2" Text="{Binding PaneB.FirmwareProtocol}" />
+                    <!-- Chip identity rows (2026-11-23): what tells one S2 from another, for BUGS.md B1 in HDLCGW. -->
+                    <TextBlock Grid.Row="13" Grid.Column="0" Text="Unique ID" />
+                    <TextBlock Grid.Row="13" Grid.Column="1" Text="{Binding PaneA.FirmwareUniqueId}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="13" Grid.Column="2" Text="{Binding PaneB.FirmwareUniqueId}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="14" Grid.Column="0" Text="Chip IDs" />
+                    <TextBlock Grid.Row="14" Grid.Column="1" Text="{Binding PaneA.FirmwareChipIds}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="14" Grid.Column="2" Text="{Binding PaneB.FirmwareChipIds}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="15" Grid.Column="0" Text="Flash chip ID" />
+                    <TextBlock Grid.Row="15" Grid.Column="1" Text="{Binding PaneA.FirmwareFlashId}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="15" Grid.Column="2" Text="{Binding PaneB.FirmwareFlashId}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="16" Grid.Column="0" Text="Chip fuses" />
+                    <TextBlock Grid.Row="16" Grid.Column="1" Text="{Binding PaneA.FirmwareFuses}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="16" Grid.Column="2" Text="{Binding PaneB.FirmwareFuses}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="17" Grid.Column="0" Text="Longest frame" />
+                    <TextBlock Grid.Row="17" Grid.Column="1" Text="{Binding PaneA.FirmwareMaxFrame}" />
+                    <TextBlock Grid.Row="17" Grid.Column="2" Text="{Binding PaneB.FirmwareMaxFrame}" />
+                    <TextBlock Grid.Row="18" Grid.Column="0" Text="Capabilities" />
+                    <TextBlock Grid.Row="18" Grid.Column="1" Text="{Binding PaneA.FirmwareCapabilities}" />
+                    <TextBlock Grid.Row="18" Grid.Column="2" Text="{Binding PaneB.FirmwareCapabilities}" />
+                    <TextBlock Grid.Row="19" Grid.Column="0" Text="Control-frame protocol" />
+                    <TextBlock Grid.Row="19" Grid.Column="1" Text="{Binding PaneA.FirmwareProtocol}" />
+                    <TextBlock Grid.Row="19" Grid.Column="2" Text="{Binding PaneB.FirmwareProtocol}" />
                 </Grid>
                 </ScrollViewer>
             </TabItem>
